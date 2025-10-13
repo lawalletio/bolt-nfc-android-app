@@ -20,6 +20,7 @@ import WriteModal from '../components/WriteModal';
 import {createInitializeCardEvent} from '../lib/utils';
 
 import {getEventHash, getPublicKey, getSignature} from 'nostr-tools';
+import {useLaWallet} from '../providers/LaWallet';
 
 const CardStatus = {
   IDLE: 'idle',
@@ -192,6 +193,24 @@ export default function CreateBulkBoltcardScreen(props) {
     // console.info('pubkey');
     // console.info(pubkey);
   }, []);
+
+  const {isLogged} = useLaWallet();
+
+  if (!isLogged) {
+    return (
+      <Card
+        style={{
+          marginBottom: 20,
+          marginTop: 10,
+          marginHorizontal: 10,
+          zIndex: 1000,
+        }}>
+        <Card.Content>
+          <Text>Not logged in</Text>
+        </Card.Content>
+      </Card>
+    );
+  }
 
   return (
     <ScrollView style={{}}>

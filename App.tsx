@@ -7,9 +7,9 @@ import {
   StyleSheet,
   Text,
   View,
-  NativeModules,
   Platform,
 } from 'react-native';
+import {LaWalletProvider} from './src/providers/LaWallet';
 
 import {DefaultTheme, Provider as PaperProvider} from 'react-native-paper';
 
@@ -28,6 +28,7 @@ import ResetKeysScreen from './src/screens/ResetKeysScreen';
 import ScanScreen from './src/screens/ScanScreen';
 
 import {LogBox} from 'react-native';
+import LoginScreen from './src/screens/Login';
 LogBox.ignoreLogs(['Warning: ...']); // Ignore log notification by message
 LogBox.ignoreAllLogs();
 
@@ -131,60 +132,63 @@ export default function App(props) {
 
   return (
     <PaperProvider theme={theme}>
-      <NavigationContainer>
-        <Tab.Navigator
-          screenOptions={({route}) => ({
-            tabBarIcon: ({focused, color, size}) => {
-              let iconName;
+      <LaWalletProvider>
+        <NavigationContainer>
+          <Tab.Navigator
+            screenOptions={({route}) => ({
+              tabBarIcon: ({focused, color, size}) => {
+                let iconName;
 
-              if (route.name === 'Link QR') {
-                iconName = focused ? 'qr-code' : 'qr-code-outline';
-              } else if (route.name === 'Create Bulk Bolt Card') {
-                iconName = focused
-                  ? 'file-tray-stacked'
-                  : 'file-tray-stacked-outline';
-              } else if (route.name === 'Help') {
-                iconName = focused ? 'information' : 'information-outline';
-              } else if (route.name === 'Advanced') {
-                iconName = focused ? 'settings' : 'settings-outline';
-              } else if (route.name === 'Read NFC') {
-                iconName = focused ? 'book' : 'book-outline';
-              } else if (route.name === 'Reset Keys') {
-                iconName = focused ? 'key' : 'key-outline';
-              }
+                if (route.name === 'Link QR') {
+                  iconName = focused ? 'qr-code' : 'qr-code-outline';
+                } else if (route.name === 'Create Bulk Bolt Card') {
+                  iconName = focused
+                    ? 'file-tray-stacked'
+                    : 'file-tray-stacked-outline';
+                } else if (route.name === 'Help') {
+                  iconName = focused ? 'information' : 'information-outline';
+                } else if (route.name === 'Login') {
+                  iconName = focused ? 'person' : 'person-outline';
+                } else if (route.name === 'Advanced') {
+                  iconName = focused ? 'settings' : 'settings-outline';
+                } else if (route.name === 'Read NFC') {
+                  iconName = focused ? 'book' : 'book-outline';
+                } else if (route.name === 'Reset Keys') {
+                  iconName = focused ? 'key' : 'key-outline';
+                }
 
-              // You can return any component that you like here!
-              return <Ionicons name={iconName} size={size} color={color} />;
-            },
-            tabBarActiveTintColor: '#f58340',
-            tabBarInactiveTintColor: 'gray',
-          })}>
-          <Tab.Screen
-            name="Reset Keys"
-            children={() => (
-              <CreateBoltcardStack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                }}>
-                <CreateBoltcardStack.Screen
-                  name="ResetKeysScreen"
-                  component={ResetKeysScreen}
-                  initialParams={{data: null}}
-                />
-                <CreateBoltcardStack.Screen
-                  name="ScanScreenReset"
-                  component={ScanScreen}
-                />
-              </CreateBoltcardStack.Navigator>
-            )}
-          />
-          <Tab.Screen name="Read NFC" component={ReadNFCScreen} />
-          <Tab.Screen
-            name="Create Bulk Bolt Card"
-            component={CreateBulkBoltcardScreen}
-          />
+                // You can return any component that you like here!
+                return <Ionicons name={iconName} size={size} color={color} />;
+              },
+              tabBarActiveTintColor: '#f58340',
+              tabBarInactiveTintColor: 'gray',
+            })}>
+            <Tab.Screen
+              name="Reset Keys"
+              children={() => (
+                <CreateBoltcardStack.Navigator
+                  screenOptions={{
+                    headerShown: false,
+                  }}>
+                  <CreateBoltcardStack.Screen
+                    name="ResetKeysScreen"
+                    component={ResetKeysScreen}
+                    initialParams={{data: null}}
+                  />
+                  <CreateBoltcardStack.Screen
+                    name="ScanScreenReset"
+                    component={ScanScreen}
+                  />
+                </CreateBoltcardStack.Navigator>
+              )}
+            />
+            <Tab.Screen name="Read NFC" component={ReadNFCScreen} />
+            <Tab.Screen
+              name="Create Bulk Bolt Card"
+              component={CreateBulkBoltcardScreen}
+            />
 
-          {/* <Tab.Screen
+            {/* <Tab.Screen
             name="Link QR"
             component={LinkCardQRScreen}
             options={{
@@ -194,45 +198,53 @@ export default function App(props) {
             }}
           /> */}
 
-          <Tab.Screen
-            name="Link QR"
-            options={{
-              headerTitle: props => (
-                <LogoTitle title="Link Card to QR" {...props} />
-              ),
-            }}
-            children={() => (
-              <CreateBoltcardStack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                }}>
-                <CreateBoltcardStack.Screen
-                  name="Link QR Main"
-                  component={LinkCardQRScreen}
-                  initialParams={{data: null}}
-                />
-                <CreateBoltcardStack.Screen
-                  name="ScanScreen"
-                  component={ScanScreen}
-                />
-              </CreateBoltcardStack.Navigator>
-            )}
-          />
-          <Tab.Screen
-            name="Help"
-            component={HelpScreen}
-            options={{
-              headerTitle: props => <LogoTitle title="Help" {...props} />,
-            }}
-          />
-        </Tab.Navigator>
-      </NavigationContainer>
-      <ErrorModal
-        modalText={modalText}
-        modalVisible={modalVisible}
-        setModalVisible={setModalVisible}
-      />
-      <Toast />
+            {/* <Tab.Screen
+              name="Link QR"
+              options={{
+                headerTitle: props => (
+                  <LogoTitle title="Link Card to QR" {...props} />
+                ),
+              }}
+              children={() => (
+                <CreateBoltcardStack.Navigator
+                  screenOptions={{
+                    headerShown: false,
+                  }}>
+                  <CreateBoltcardStack.Screen
+                    name="Link QR Main"
+                    component={LinkCardQRScreen}
+                    initialParams={{data: null}}
+                  />
+                  <CreateBoltcardStack.Screen
+                    name="ScanScreen"
+                    component={ScanScreen}
+                  />
+                </CreateBoltcardStack.Navigator>
+              )}
+            />
+            <Tab.Screen
+              name="Help"
+              component={HelpScreen}
+              options={{
+                headerTitle: props => <LogoTitle title="Help" {...props} />,
+              }}
+            /> */}
+            <Tab.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{
+                headerTitle: props => <LogoTitle title="Login" {...props} />,
+              }}
+            />
+          </Tab.Navigator>
+        </NavigationContainer>
+        <ErrorModal
+          modalText={modalText}
+          modalVisible={modalVisible}
+          setModalVisible={setModalVisible}
+        />
+        <Toast />
+      </LaWalletProvider>
     </PaperProvider>
   );
 }
