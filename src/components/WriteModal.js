@@ -52,10 +52,10 @@ export default function WriteModal(props) {
       console.info("NFCManager: we're ready to write!");
 
       //set ndef
-      const ndefMessage = lnurlw_base.includes('?')
-        ? lnurlw_base + '&p=00000000000000000000000000000000&c=0000000000000000'
-        : lnurlw_base +
-          '?p=00000000000000000000000000000000&c=0000000000000000';
+      const ndefMessage =
+        lnurlw_base +
+        (lnurlw_base.includes('?') ? '&' : '?') +
+        'p=00000000000000000000000000000000&c=0000000000000000';
 
       const message = [Ndef.uriRecord(ndefMessage)];
       const bytes = Ndef.encodeMessage(message);
