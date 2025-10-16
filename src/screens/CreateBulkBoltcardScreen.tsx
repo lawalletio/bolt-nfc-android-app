@@ -1,4 +1,5 @@
 /* eslint-disable no-alert */
+/* eslint-disable react-native/no-inline-styles */
 import {useNavigation} from '@react-navigation/native';
 import React, {useCallback, useEffect, useState} from 'react';
 import {Dropdown} from 'react-native-element-dropdown';
@@ -12,12 +13,13 @@ import {
   Image,
 } from 'react-native';
 import {Card, Title} from 'react-native-paper';
-import Config from 'react-native-config';
 
 import NfcManager, {NfcTech} from 'react-native-nfc-manager';
 import WriteModal from '../components/WriteModal';
 
 import {useLaWallet} from '../providers/LaWallet';
+import {InitializeCardResponse} from '../types/response';
+import {Skin} from '../types/skin';
 
 const CardStatus = {
   IDLE: 'idle',
@@ -26,77 +28,76 @@ const CardStatus = {
   WRITING: 'writing',
 };
 
-const ADMIN_URL = Config.ADMIN_URL;
-const LNURLW_ENDPOINT = Config.LNURLW_ENDPOINT;
-
 export default function CreateBulkBoltcardScreen() {
-  const [cardData, setCardData] = useState();
+  const [cardData, setCardData] = useState<InitializeCardResponse>();
 
   const [cardStatus, setCardStatus] = useState(CardStatus.IDLE);
 
   const [openSkin, setOpenSkin] = useState(false);
-  const [skin, setSkin] = useState();
-  const [error, setError] = useState();
+  const [skin, setSkin] = useState<Skin | undefined>();
+  const [error, setError] = useState<string>();
 
   const navigation = useNavigation();
-  const {isLogged, skins} = useLaWallet();
+  const {isLogged, skins, lnurlwBase, apiEndpoint} = useLaWallet();
 
-  const requestCreateCard = useCallback(async (_cardUID, _skin) => {
-    setCardStatus(CardStatus.CREATING_CARD);
-    // Make request to create card
+  const requestCreateCard = useCallback(
+    async (_cardUID, _skin) => {
+      setCardStatus(CardStatus.CREATING_CARD);
+      // Make request to create card
 
-    const url = `${ADMIN_URL}/ntag424`;
-    // console.info('url', url);
-    // create request
-    ToastAndroid.showWithGravity(
-      `Creating card : ${url}`,
-      ToastAndroid.SHORT,
-      ToastAndroid.TOP,
-    );
+      const url = `${apiEndpoint}`;
+      // console.info('url', url);
+      // create request
+      ToastAndroid.showWithGravity(
+        `Creating card : ${url}`,
+        ToastAndroid.SHORT,
+        ToastAndroid.TOP,
+      );
 
-    const body = {
-      designId: _skin.value,
-      cardUID: _cardUID,
-    };
+      const body = {
+        designId: _skin.value,
+        cardUID: _cardUID,
+      };
 
-    // console.info('skin', _skin);
-    // console.info('cardUID', _cardUID);
+      // console.info('skin', _skin);
+      // console.info('cardUID', _cardUID);
 
-    // console.info('event');
-    // console.info(JSON.stringify(event));
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-      .then(response => {
-        // console.info('response', JSON.stringify(response));
-
-        if (!response.ok) {
-          throw new Error(`Server returned error ${response.status}`);
-        }
-        return response.json();
+      // console.info('event');
+      // console.info(JSON.stringify(event));
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
       })
-      .then(json => {
-        const data = JSON.parse(json.content);
-        if (!(data.k0 && data.k1 && data.k2 && data.k3 && data.k4)) {
+        .then(response => {
+          // console.info('response', JSON.stringify(response));
+
+          if (!response.ok) {
+            throw new Error(`Server returned error ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(json => {
+          const data = JSON.parse(json.content) as InitializeCardResponse;
+          if (!(data.k0 && data.k1 && data.k2 && data.k3 && data.k4)) {
+            setCardStatus(CardStatus.IDLE);
+            alert('The JSON response must contain k0, k1, k2, k3, k4');
+            return;
+          }
+          setCardStatus(CardStatus.WRITING);
+          setCardData(data);
+        })
+        .catch(_error => {
+          setError(JSON.stringify(_error));
+          alert(_error.message);
           setCardStatus(CardStatus.IDLE);
-          alert('The JSON response must contain k0, k1, k2, k3, k4');
-          return;
-        }
-        setCardStatus(CardStatus.WRITING);
-        data.lnurlw_base = LNURLW_ENDPOINT;
-        setCardData(data);
-      })
-      .catch(_error => {
-        setError(JSON.stringify(_error));
-        alert(_error.message);
-        setCardStatus(CardStatus.IDLE);
-        console.error(_error);
-      });
-  }, []);
+          console.error(_error);
+        });
+    },
+    [apiEndpoint, setCardStatus, setCardData, setError],
+  );
 
   const onReadCard = useCallback(
     event => {
@@ -141,8 +142,8 @@ export default function CreateBulkBoltcardScreen() {
       onReadCard(tag);
     } catch (e) {
       setCardStatus(CardStatus.IDLE);
-      alert(e);
-      console.error(e);
+      alert(e?.message);
+      console.error(e?.message);
     }
   }, [onReadCard]);
 
@@ -237,8 +238,6 @@ export default function CreateBulkBoltcardScreen() {
               <Title>Card skin</Title>
               <Dropdown
                 style={[styles.dropdown, openSkin && {borderColor: 'blue'}]}
-                placeholderStyle={styles.placeholderStyle}
-                selectedTextStyle={styles.selectedTextStyle}
                 data={skins}
                 search
                 maxHeight={300}
@@ -276,7 +275,7 @@ export default function CreateBulkBoltcardScreen() {
             <Button
               onPress={() => {
                 setCardStatus(CardStatus.IDLE);
-                setSkin();
+                setSkin(undefined);
               }}
               title="Cancelar"
             />
@@ -305,7 +304,7 @@ export default function CreateBulkBoltcardScreen() {
         visible={cardStatus === CardStatus.WRITING}
         onCancel={() => setCardStatus(CardStatus.IDLE)}
         onSuccess={() => setCardStatus(CardStatus.READING)}
-        cardData={cardData}
+        cardData={{...cardData, lnurlw_base: lnurlwBase}}
       />
     </ScrollView>
   );
