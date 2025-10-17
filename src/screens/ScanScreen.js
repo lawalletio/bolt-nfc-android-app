@@ -29,8 +29,9 @@ export default function ScanScreen({route, navigation}) {
   const onSuccess = data => {
     console.log('scan success');
     const cardNonce = getQueryParam(data, 'c');
+    const url = data;
     navigation.navigate(backScreen, {
-      data: {otc: cardNonce, credentials},
+      data: {otc: cardNonce, url, credentials},
       timestamp: Date.now(),
     });
   };

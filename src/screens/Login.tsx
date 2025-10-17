@@ -1,4 +1,6 @@
-import React from 'react';
+/* eslint-disable react-native/no-inline-styles */
+import React, {useEffect} from 'react';
+import {useNavigation} from '@react-navigation/native';
 import {
   TouchableOpacity,
   ScrollView,
@@ -10,16 +12,31 @@ import {Card, Title} from 'react-native-paper';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useLaWallet} from '../providers/LaWallet';
 
-export default function LoginScreen({navigation}) {
+export default function LoginScreen({route}) {
   const {login, isLogged, isLoading, logout} = useLaWallet();
+  // get data from QR
+  const {data: qrData, timestamp} = route.params || {};
+  // use navigation
+  const navigation = useNavigation();
 
   const handleLogin = () => {
-    login('https://app.lawallet.ar');
+    // login('holaaa');
+    (navigation as any).navigate('ScanScreenLogin', {
+      backScreen: 'LoginScreen',
+    });
   };
 
   const handleLogout = () => {
     logout();
   };
+
+  useEffect(() => {
+    if (!qrData || !timestamp) {
+      return;
+    }
+    login(qrData.url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrData, timestamp]);
 
   return (
     <>

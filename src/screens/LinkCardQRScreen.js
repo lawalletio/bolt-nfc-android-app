@@ -1,5 +1,6 @@
+/* eslint-disable no-alert */
 import {useNavigation} from '@react-navigation/core';
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect} from 'react';
 import {Button, ScrollView, StyleSheet, Text} from 'react-native';
 import Dialog from 'react-native-dialog';
 import NfcManager, {NfcTech, Ndef} from 'react-native-nfc-manager';

@@ -229,12 +229,28 @@ export default function App(props) {
                 headerTitle: props => <LogoTitle title="Help" {...props} />,
               }}
             /> */}
+
             <Tab.Screen
               name="Login"
-              component={LoginScreen}
               options={{
                 headerTitle: props => <LogoTitle title="Login" {...props} />,
               }}
+              children={() => (
+                <CreateBoltcardStack.Navigator
+                  screenOptions={{
+                    headerShown: false,
+                  }}>
+                  <CreateBoltcardStack.Screen
+                    name="LoginScreen"
+                    component={LoginScreen}
+                    initialParams={{data: null}}
+                  />
+                  <CreateBoltcardStack.Screen
+                    name="ScanScreenLogin"
+                    component={ScanScreen}
+                  />
+                </CreateBoltcardStack.Navigator>
+              )}
             />
           </Tab.Navigator>
         </NavigationContainer>
