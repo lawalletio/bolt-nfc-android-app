@@ -28,6 +28,5 @@ export function createAsociateCardEvent(otc, cardModulePubKey) {
 
 module.exports = {
   getQueryParam,
-  createInitializeCardEvent,
   createAsociateCardEvent,
 };
