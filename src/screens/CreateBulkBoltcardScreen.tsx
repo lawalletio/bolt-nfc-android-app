@@ -17,8 +17,8 @@ import {Card, Title} from 'react-native-paper';
 import NfcManager, {NfcTech} from 'react-native-nfc-manager';
 import WriteModal from '../components/WriteModal';
 
-import {useLaWallet} from '../providers/LaWallet';
-import {InitializeCardResponse} from '../types/response';
+import {useLaWallet, AuthError} from '../providers/LaWallet';
+import {Ntag424WriteData} from '../types/response';
 import {Skin} from '../types/skin';
 
 const CardStatus = {
@@ -29,7 +29,7 @@ const CardStatus = {
 };
 
 export default function CreateBulkBoltcardScreen() {
-  const [cardData, setCardData] = useState<InitializeCardResponse>();
+  const [cardData, setCardData] = useState<Ntag424WriteData | undefined>();
 
   const [cardStatus, setCardStatus] = useState(CardStatus.IDLE);
 
@@ -38,69 +38,98 @@ export default function CreateBulkBoltcardScreen() {
   const [error, setError] = useState<string>();
 
   const navigation = useNavigation();
-  const {isLogged, skins, lnurlwBase, apiEndpoint} = useLaWallet();
+  const {isLogged, skins, authFetch, baseUrl} = useLaWallet();
 
   const requestCreateCard = useCallback(
-    async (_cardUID, _skin) => {
+    async (_cardUID: string, _skin: Skin) => {
       setCardStatus(CardStatus.CREATING_CARD);
-      // Make request to create card
+      setError(undefined);
 
-      const url = `${apiEndpoint}`;
-      // console.info('url', url);
-      // create request
       ToastAndroid.showWithGravity(
-        `Creating card : ${url}`,
+        'Creating card…',
         ToastAndroid.SHORT,
         ToastAndroid.TOP,
       );
 
-      const body = {
-        designId: _skin.value,
-        cardUID: _cardUID,
-      };
-
-      // console.info('skin', _skin);
-      // console.info('cardUID', _cardUID);
-
-      // console.info('event');
-      // console.info(JSON.stringify(event));
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      })
-        .then(response => {
-          // console.info('response', JSON.stringify(response));
-
-          if (!response.ok) {
-            throw new Error(`Server returned error ${response.status}`);
-          }
-          return response.json();
-        })
-        .then(json => {
-          const data = JSON.parse(json.content) as InitializeCardResponse;
-          if (!(data.k0 && data.k1 && data.k2 && data.k3 && data.k4)) {
-            setCardStatus(CardStatus.IDLE);
-            alert('The JSON response must contain k0, k1, k2, k3, k4');
-            return;
-          }
-          setCardStatus(CardStatus.WRITING);
-          setCardData(data);
-        })
-        .catch(_error => {
-          setError(JSON.stringify(_error));
-          alert(_error.message);
-          setCardStatus(CardStatus.IDLE);
-          console.error(_error);
+      try {
+        // 1. Create the card on the backend (auth-gated: cards:write scope).
+        const createRes = await authFetch('/api/cards', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: _cardUID,
+            designId: _skin.value,
+            kind: 'SIMPLE',
+          }),
         });
+
+        if (!createRes.ok) {
+          const msg = await createRes.text().catch(() => '');
+          alert(`Server error ${createRes.status}: ${msg}`);
+          setCardStatus(CardStatus.IDLE);
+          return;
+        }
+
+        const createdCard = await createRes.json();
+        const cardId: string = createdCard.id;
+
+        // 2. Fetch the canonical write payload (public endpoint — no auth needed).
+        //    It includes the lnurlw_base and keys already assembled by the server.
+        let writeData: Ntag424WriteData;
+        try {
+          const writeRes = await fetch(`${baseUrl}/api/cards/${cardId}/write`);
+          if (writeRes.ok) {
+            writeData = await writeRes.json();
+          } else {
+            throw new Error(`write endpoint returned ${writeRes.status}`);
+          }
+        } catch (writeErr) {
+          // Fallback: build the payload from the POST response keys.
+          console.warn('CreateBulk: write endpoint failed, using POST keys', writeErr);
+          const ntag = createdCard.ntag424;
+          const host = (() => {
+            try {
+              return new URL(baseUrl).host;
+            } catch {
+              return baseUrl.replace(/^https?:\/\//, '').split('/')[0];
+            }
+          })();
+          writeData = {
+            card_name: createdCard.title || 'New Card',
+            id: ntag.cid,
+            k0: ntag.k0,
+            k1: ntag.k1,
+            k2: ntag.k2,
+            k3: ntag.k3,
+            k4: ntag.k4,
+            lnurlw_base: `lnurlw://${host}/api/cards/${cardId}/scan`,
+            protocol_name: 'new_bolt_card_response',
+            protocol_version: '1',
+          };
+        }
+
+        setCardData(writeData);
+        setCardStatus(CardStatus.WRITING);
+      } catch (err) {
+        if (err instanceof AuthError && err.kind === 'expired') {
+          ToastAndroid.showWithGravity(
+            'Session expired — re-login on the Login tab',
+            ToastAndroid.LONG,
+            ToastAndroid.TOP,
+          );
+        } else {
+          const msg =
+            err instanceof Error ? err.message : JSON.stringify(err);
+          setError(msg);
+          alert(msg);
+        }
+        setCardStatus(CardStatus.IDLE);
+      }
     },
-    [apiEndpoint, setCardStatus, setCardData, setError],
+    [authFetch, baseUrl],
   );
 
   const onReadCard = useCallback(
-    event => {
+    (event: any) => {
       const _cardUID = event.id?.toLowerCase();
       console.log(
         event.key0Changed,
@@ -120,8 +149,8 @@ export default function CreateBulkBoltcardScreen() {
       }
 
       try {
-        requestCreateCard(_cardUID, skin);
-      } catch (e) {
+        requestCreateCard(_cardUID, skin!);
+      } catch (e: any) {
         alert(e.reason);
         setCardStatus(CardStatus.IDLE);
       }
@@ -137,10 +166,8 @@ export default function CreateBulkBoltcardScreen() {
       console.info('START reading...');
       await NfcManager.requestTechnology(NfcTech.IsoDep);
       const tag = await NfcManager.getTag();
-
-      // console.info('tag:');
       onReadCard(tag);
-    } catch (e) {
+    } catch (e: any) {
       setCardStatus(CardStatus.IDLE);
       alert(e?.message);
       console.error(e?.message);
@@ -150,15 +177,13 @@ export default function CreateBulkBoltcardScreen() {
   // On exit screen
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
-      // Do something when the screen blurs
       setCardStatus(CardStatus.IDLE);
       NfcManager.cancelTechnologyRequest();
     });
-
     return unsubscribe;
   }, [navigation]);
 
-  // Add Listeners
+  // React to cardStatus changes
   useEffect(() => {
     switch (cardStatus) {
       case CardStatus.READING:
@@ -166,22 +191,11 @@ export default function CreateBulkBoltcardScreen() {
         setCardData(undefined);
         startReading();
         break;
-
       default:
         setCardData(undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardStatus]);
-
-  // On mount
-  useEffect(() => {
-    // NfcManager.start();
-    // console.info('getPublicKey');
-    // console.info(getPublicKey);
-    // const pubkey = getPublicKey(NOSTR_PRIVATE_KEY);
-    // console.info('pubkey');
-    // console.info(pubkey);
-  }, []);
 
   if (!isLogged) {
     return (
@@ -193,7 +207,7 @@ export default function CreateBulkBoltcardScreen() {
           zIndex: 1000,
         }}>
         <Card.Content>
-          <Text>Not logged in</Text>
+          <Text>Not logged in — go to the Login tab to authenticate.</Text>
         </Card.Content>
       </Card>
     );
@@ -304,7 +318,7 @@ export default function CreateBulkBoltcardScreen() {
         visible={cardStatus === CardStatus.WRITING}
         onCancel={() => setCardStatus(CardStatus.IDLE)}
         onSuccess={() => setCardStatus(CardStatus.READING)}
-        cardData={{...cardData, lnurlw_base: lnurlwBase}}
+        cardData={cardData}
       />
     </ScrollView>
   );

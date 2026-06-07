@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Build wrapper — guarantees Gradle runs with the right JDK regardless of
+# how the user's shell is configured. Use this when SDKMAN auto-env isn't active.
+#
+# Usage:
+#   ./scripts/build debug    # assembleDebug
+#   ./scripts/build release  # assembleRelease
+#   ./scripts/build bundle   # bundleRelease (AAB for Play Store)
+#   ./scripts/build clean    # ./gradlew clean
+#   ./scripts/build <args>   # passthrough: ./scripts/build app:assembleDebug --info
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_DIR/android"
+
+# Resolve JAVA_HOME to a JDK 11 install, in priority order:
+#   1. SDKMAN candidate (if SDKMAN is active and .sdkmanrc applied)
+#   2. macOS: /usr/libexec/java_home -v 11
+#   3. Common Linux locations (Zulu, Temurin, Adoptium, system)
+resolve_java_home() {
+  # SDKMAN
+  if [ -n "${SDKMAN_DIR:-}" ] && [ -L "$SDKMAN_DIR/candidates/java/current" ]; then
+    local sdkman_java
+    sdkman_java="$(readlink -f "$SDKMAN_DIR/candidates/java/current" 2>/dev/null || readlink "$SDKMAN_DIR/candidates/java/current")"
+    if "$sdkman_java/bin/java" -version 2>&1 | grep -q 'version "11'; then
+      echo "$sdkman_java"; return 0
+    fi
+  fi
+
+  # macOS java_home
+  if [ -x /usr/libexec/java_home ]; then
+    local mac_java
+    if mac_java="$(/usr/libexec/java_home -v 11 2>/dev/null)"; then
+      echo "$mac_java"; return 0
+    fi
+  fi
+
+  # Linux fallbacks
+  for cand in \
+      /usr/lib/jvm/zulu-11* \
+      /usr/lib/jvm/temurin-11* \
+      /usr/lib/jvm/java-11-openjdk* \
+      /opt/zulu-11* \
+      /opt/jdk-11*; do
+    if [ -x "$cand/bin/java" ]; then
+      echo "$cand"; return 0
+    fi
+  done
+
+  return 1
+}
+
+if ! JAVA_HOME="$(resolve_java_home)"; then
+  echo "✗ Could not find a JDK 11 install." >&2
+  echo "  Run ./scripts/setup.sh to install one via SDKMAN, or install Zulu 11 manually." >&2
+  exit 1
+fi
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+
+echo "▸ Using JAVA_HOME=$JAVA_HOME"
+echo "▸ $($JAVA_HOME/bin/java -version 2>&1 | head -1)"
+
+# Map shortcut names to gradle tasks
+case "${1:-}" in
+  ""|help|-h|--help)
+    cat <<EOF
+Usage: ./scripts/build <command>
+
+Shortcuts:
+  debug      ./gradlew assembleDebug
+  release    ./gradlew assembleRelease
+  bundle     ./gradlew bundleRelease    (AAB for Play Store)
+  clean      ./gradlew clean
+  stop       ./gradlew --stop           (kill Gradle daemons)
+  version    ./gradlew --version
+
+Anything else is passed straight through to ./gradlew.
+EOF
+    exit 0
+    ;;
+  debug)    set -- assembleDebug ;;
+  release)  set -- assembleRelease ;;
+  bundle)   set -- bundleRelease ;;
+  clean)    set -- clean ;;
+  stop)     set -- --stop ;;
+  version)  set -- --version ;;
+esac
+
+exec ./gradlew "$@"

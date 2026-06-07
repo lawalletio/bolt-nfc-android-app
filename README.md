@@ -27,26 +27,92 @@ Download the compiled APK from the [latest release](https://github.com/boltcard/
 
 Download from the [Google Play store](https://play.google.com/store/apps/details?id=com.lacrypta.cardinstaller&hl=en&gl=US)
 
-## Setup & Run instructions for Linux with Android
+## Pinned toolchain
 
-### Build instructions
+This project is locked to a specific build toolchain. Versions are declared in repo
+config and consumed automatically by the helper scripts — no manual env-var juggling.
 
-1. Install android studio https://developer.android.com/studio
-2. Install Android 12 SDK version 31 reference: https://reactnative.dev/docs/environment-setup
-   “Android Studio installs the latest Android SDK by default. Building a React Native app with native code, however, requires the Android 12 (S) SDK in particular. Additional Android SDKs can be installed through the SDK Manager in Android Studio.“
-3. Install Google APIs Intel x86 Atom_64 System Image
-4. Install node v14.X or v16.X (v14.20.0 & v16.14.2 are working)
-5. Install NPX https://www.npmjs.com/package/npx
-6. Install Yarn https://yarnpkg.com/
-7. Might also be needed: $ sudo corepack enable
-8. Install JDK $sudo apt install default-jdk
-9. clone repo to dir
-10. cd to dir and run yarn (might be some warnings)
-11. connect android phone to USB and enable USB debugging on phone.
-12. in the terminal type $npx react-native start
-13. Register an app key for the Taplinx SDK library on https://inspire.nxp.com/mifare/
-14. Rename .env-example to .env and set the Mifare package key in this file
-15. open another terminal in same dir and type $npx react-native run-android
+| Tool                | Version              | Source of truth                                   |
+| ------------------- | -------------------- | ------------------------------------------------- |
+| Java                | Zulu 11.0.26         | `.sdkmanrc`                                       |
+| Node                | 18.15                | `.nvmrc`, `.node-version`                         |
+| Yarn                | 1.x (classic)        | installed by `scripts/setup.sh`                   |
+| Gradle              | 7.5.1                | `android/gradle/wrapper/gradle-wrapper.properties`|
+| Android Gradle Plugin | 7.3.1              | `android/build.gradle`                            |
+| Kotlin              | 1.7.0                | `android/gradle.properties`                       |
+| Android SDK         | API 31 (Android 12)  | `android/build.gradle`                            |
+| Build Tools         | 33.0.0               | `android/build.gradle`                            |
+| NDK                 | 23.1.7779620         | `android/build.gradle`                            |
+
+Bumping any of these is a deliberate change — they're committed to git and shared
+across machines.
+
+## Quick start
+
+### One-shot setup (new machine)
+
+Requires Android Studio + Android SDK installed separately
+(see https://reactnative.dev/docs/environment-setup → "React Native CLI Quickstart").
+
+```bash
+git clone <repo>
+cd bolt-nfc-android-app
+yarn setup       # installs SDKMAN, nvm, Zulu 11, Node 18.15, yarn, JS deps
+```
+
+The setup script is idempotent — safe to re-run after pulling changes.
+
+After setup:
+1. Edit `.env` and set your `MIFARE_KEY` (register at https://inspire.nxp.com/mifare/).
+2. Connect an Android device with USB debugging enabled, or start an emulator.
+3. Build & run (see commands below).
+
+### Day-to-day commands
+
+```bash
+yarn build:debug     # build debug APK (no install)
+yarn build:release   # build signed release APK
+yarn build:bundle    # build AAB for Google Play
+yarn android         # build + install debug on connected device/emulator
+yarn start           # start Metro bundler
+yarn clean           # gradle clean
+yarn clean:full      # nuke gradle daemons + local caches (use after JDK changes)
+```
+
+All build commands route through `./scripts/build`, which sets `JAVA_HOME` to a
+JDK 11 install automatically (via SDKMAN, then macOS `java_home`, then known
+Linux JDK paths). You don't need to set `JAVA_HOME` manually.
+
+### Deploying a release
+
+1. Place your upload keystore at `android/app/my-upload-key.keystore`
+   (signing config + credentials are in `android/gradle.properties`).
+2. `yarn build:bundle` → produces `android/app/build/outputs/bundle/release/app-release.aab`
+3. Upload the AAB to Google Play Console.
+
+For first-time keystore generation:
+```bash
+keytool -genkeypair -v -keystore android/app/my-upload-key.keystore \
+  -alias onesandzeros-key -keyalg RSA -keysize 2048 -validity 10000
+```
+
+### Manual setup (if you don't want yarn setup)
+
+<details>
+<summary>Click to expand</summary>
+
+1. Install Android Studio + Android 12 (API 31) SDK, build-tools 33.0.0, NDK 23.1.7779620
+2. Install SDKMAN: `curl -s https://get.sdkman.io | bash`
+3. In the repo root, run `sdk env install` (reads `.sdkmanrc`, installs Zulu 11)
+4. Install nvm: https://github.com/nvm-sh/nvm
+5. In the repo root, run `nvm install` (reads `.nvmrc`, installs Node 18.15)
+6. `npm install -g yarn`
+7. `yarn install`
+8. `cp .env-example .env` and set `MIFARE_KEY` (register at https://inspire.nxp.com/mifare/)
+9. Connect device or start emulator
+10. `yarn android`
+
+</details>
 
 ## Usage
 

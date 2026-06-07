@@ -173,7 +173,7 @@ export default function ResetKeysScreen({route}) {
   };
 
   const scanQRCode = () => {
-    navigation.navigate('ScanScreen', {
+    navigation.navigate('ScanScreenReset', {
       backRoot: 'Advanced',
       backScreen: 'ResetKeysScreen',
     });

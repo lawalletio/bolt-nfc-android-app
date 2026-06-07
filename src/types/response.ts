@@ -11,5 +11,50 @@ export type InitializeCardResponse = {
   k2: string;
   k3: string;
   k4: string;
-  privateUID: string;
+  privateUID?: string;
+};
+
+export type CardDesign = {
+  id: string;
+  imageUrl: string;
+  description: string;
+  createdAt: string;
+  archivedAt?: string | null;
+};
+
+export type Ntag424Keys = {
+  cid: string;
+  k0: string;
+  k1: string;
+  k2: string;
+  k3: string;
+  k4: string;
+  ctr: number;
+  createdAt: string;
+};
+
+export type Card = {
+  id: string; // server-generated hex id (NOT the chip uid)
+  design: {id: string; imageUrl: string; description: string; createdAt: string};
+  ntag424: Ntag424Keys;
+  createdAt: string;
+  title?: string;
+  lastUsedAt?: string;
+  pubkey?: string;
+  username?: string;
+  otc?: string;
+  kind: string;
+};
+
+export type Ntag424WriteData = {
+  card_name: string;
+  id: string;
+  k0: string;
+  k1: string;
+  k2: string;
+  k3: string;
+  k4: string;
+  lnurlw_base: string; // lnurlw://<host>/api/cards/<id>/scan
+  protocol_name: 'new_bolt_card_response';
+  protocol_version: '1';
 };
