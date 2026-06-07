@@ -1,0 +1,3 @@
+# Enable auto-env through the sdkman_auto_env config
+# Add to ~/.sdkman/etc/config: sdkman_auto_env=true
+java=11.0.26-zulu

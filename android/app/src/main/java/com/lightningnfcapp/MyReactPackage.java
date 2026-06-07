@@ -22,6 +22,7 @@ public class MyReactPackage implements ReactPackage {
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
         modules.add(new MyReactModule(reactContext));
+        modules.add(new SecureStorageModule(reactContext));
         return modules;
     }
 

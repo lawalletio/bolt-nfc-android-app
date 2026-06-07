@@ -12,9 +12,10 @@ export default function ScanScreen({route, navigation}) {
   const devices = useCameraDevices();
   const device = devices.back;
 
-  const {backScreen, credentials} = route.params;
+  // mode:'raw' passes the QR value straight through (used for JWT login).
+  // mode:'url' (default) extracts the 'c' query param (legacy flow).
+  const {backScreen, credentials, mode = 'url'} = route.params || {};
 
-  // console.log('Scan Screen backScreen, backRoot', backScreen, backRoot);
   const [frameProcessor, barcodes] = useScanBarcodes([BarcodeFormat.QR_CODE], {
     checkInverted: true,
   });
@@ -28,15 +29,22 @@ export default function ScanScreen({route, navigation}) {
 
   const onSuccess = data => {
     console.log('scan success');
-    const cardNonce = getQueryParam(data, 'c');
-    const url = data;
-    navigation.navigate(backScreen, {
-      data: {otc: cardNonce, url, credentials},
-      timestamp: Date.now(),
-    });
+    if (mode === 'raw') {
+      navigation.navigate(backScreen, {
+        data: {raw: data},
+        timestamp: Date.now(),
+      });
+    } else {
+      const cardNonce = getQueryParam(data, 'c');
+      const url = data;
+      navigation.navigate(backScreen, {
+        data: {otc: cardNonce, url, credentials},
+        timestamp: Date.now(),
+      });
+    }
   };
 
-  const goBack = e => {
+  const goBack = () => {
     navigation.navigate(backScreen);
   };
 
@@ -57,7 +65,11 @@ export default function ScanScreen({route, navigation}) {
         />
         <Button
           onPress={() =>
-            onSuccess('https://app.lawallet.ar/start?i=987654321&c=12345678')
+            mode === 'raw'
+              ? onSuccess('eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiJ0ZXN0IiwicHViY2V5IjoiYWJjZCIsInJvbGUiOiJBRE1JTiIsInBlcm1pc3Npb25zIjpbImNhcmRzOndyaXRlIl0sInNjb3BlcyI6WyJjYXJkczp3cml0ZSJdLCJzdWIiOiJ0ZXN0IiwiaXNzIjoibGF3YWxsZXQtbndlIiwiYXVkIjoibGF3YWxsZXQtdXNlcnMiLCJleHAiOjk5OTk5OTk5OTl9.abc')
+              : onSuccess(
+                  'https://app.lawallet.ar/start?i=987654321&c=12345678',
+                )
           }
           title="Test"
         />

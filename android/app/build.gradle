@@ -188,6 +188,7 @@ dependencies {
     implementation group: 'com.madgag.spongycastle', name: 'core', version: '1.54.0.0'
 
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+    implementation "androidx.security:security-crypto:1.1.0-alpha06"
     debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}")
     debugImplementation("com.facebook.flipper:flipper-network-plugin:${FLIPPER_VERSION}") {
         exclude group:'com.squareup.okhttp3', module:'okhttp'
