@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {useLaWallet} from './src/providers/LaWallet';
 import {
   Image,
   Modal,
@@ -24,7 +25,7 @@ import LinkCardQRScreen from './src/screens/LinkCardQRScreen';
 import CreateBulkBoltcardScreen from './src/screens/CreateBulkBoltcardScreen';
 import HelpScreen from './src/screens/HelpScreen';
 import ReadNFCScreen from './src/screens/ReadNFCScreen';
-import ResetKeysScreen from './src/screens/ResetKeysScreen';
+import WipeCardScreen from './src/screens/WipeCardScreen';
 import ScanScreen from './src/screens/ScanScreen';
 
 import {LogBox} from 'react-native';
@@ -134,125 +135,7 @@ export default function App(props) {
     <PaperProvider theme={theme}>
       <LaWalletProvider>
         <NavigationContainer>
-          <Tab.Navigator
-            screenOptions={({route}) => ({
-              tabBarIcon: ({focused, color, size}) => {
-                let iconName;
-
-                if (route.name === 'Link QR') {
-                  iconName = focused ? 'qr-code' : 'qr-code-outline';
-                } else if (route.name === 'Create Bulk Bolt Card') {
-                  iconName = focused
-                    ? 'file-tray-stacked'
-                    : 'file-tray-stacked-outline';
-                } else if (route.name === 'Help') {
-                  iconName = focused ? 'information' : 'information-outline';
-                } else if (route.name === 'Login') {
-                  iconName = focused ? 'person' : 'person-outline';
-                } else if (route.name === 'Advanced') {
-                  iconName = focused ? 'settings' : 'settings-outline';
-                } else if (route.name === 'Read NFC') {
-                  iconName = focused ? 'book' : 'book-outline';
-                } else if (route.name === 'Reset Keys') {
-                  iconName = focused ? 'key' : 'key-outline';
-                }
-
-                // You can return any component that you like here!
-                return <Ionicons name={iconName} size={size} color={color} />;
-              },
-              tabBarActiveTintColor: '#f58340',
-              tabBarInactiveTintColor: 'gray',
-            })}>
-            <Tab.Screen
-              name="Reset Keys"
-              children={() => (
-                <CreateBoltcardStack.Navigator
-                  screenOptions={{
-                    headerShown: false,
-                  }}>
-                  <CreateBoltcardStack.Screen
-                    name="ResetKeysScreen"
-                    component={ResetKeysScreen}
-                    initialParams={{data: null}}
-                  />
-                  <CreateBoltcardStack.Screen
-                    name="ScanScreenReset"
-                    component={ScanScreen}
-                  />
-                </CreateBoltcardStack.Navigator>
-              )}
-            />
-            <Tab.Screen name="Read NFC" component={ReadNFCScreen} />
-            <Tab.Screen
-              name="Create Bulk Bolt Card"
-              component={CreateBulkBoltcardScreen}
-            />
-
-            {/* <Tab.Screen
-            name="Link QR"
-            component={LinkCardQRScreen}
-            options={{
-              headerTitle: props => (
-                <LogoTitle title="Link Card to QR" {...props} />
-              ),
-            }}
-          /> */}
-
-            {/* <Tab.Screen
-              name="Link QR"
-              options={{
-                headerTitle: props => (
-                  <LogoTitle title="Link Card to QR" {...props} />
-                ),
-              }}
-              children={() => (
-                <CreateBoltcardStack.Navigator
-                  screenOptions={{
-                    headerShown: false,
-                  }}>
-                  <CreateBoltcardStack.Screen
-                    name="Link QR Main"
-                    component={LinkCardQRScreen}
-                    initialParams={{data: null}}
-                  />
-                  <CreateBoltcardStack.Screen
-                    name="ScanScreen"
-                    component={ScanScreen}
-                  />
-                </CreateBoltcardStack.Navigator>
-              )}
-            />
-            <Tab.Screen
-              name="Help"
-              component={HelpScreen}
-              options={{
-                headerTitle: props => <LogoTitle title="Help" {...props} />,
-              }}
-            /> */}
-
-            <Tab.Screen
-              name="Login"
-              options={{
-                headerTitle: props => <LogoTitle title="Login" {...props} />,
-              }}
-              children={() => (
-                <CreateBoltcardStack.Navigator
-                  screenOptions={{
-                    headerShown: false,
-                  }}>
-                  <CreateBoltcardStack.Screen
-                    name="LoginScreen"
-                    component={LoginScreen}
-                    initialParams={{data: null}}
-                  />
-                  <CreateBoltcardStack.Screen
-                    name="ScanScreenLogin"
-                    component={ScanScreen}
-                  />
-                </CreateBoltcardStack.Navigator>
-              )}
-            />
-          </Tab.Navigator>
+          <MainTabs />
         </NavigationContainer>
         <ErrorModal
           modalText={modalText}
@@ -262,6 +145,61 @@ export default function App(props) {
         <Toast />
       </LaWalletProvider>
     </PaperProvider>
+  );
+}
+
+function MainTabs() {
+  const {isLogged} = useLaWallet();
+
+  return (
+    <Tab.Navigator
+      screenOptions={({route}) => ({
+        tabBarIcon: ({focused, color, size}) => {
+          let iconName;
+          if (route.name === 'Bulk Create') {
+            iconName = focused ? 'file-tray-stacked' : 'file-tray-stacked-outline';
+          } else if (route.name === 'Login') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else if (route.name === 'Read NFC') {
+            iconName = focused ? 'book' : 'book-outline';
+          } else if (route.name === 'Wipe Card') {
+            iconName = focused ? 'trash-bin' : 'trash-bin-outline';
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#f58340',
+        tabBarInactiveTintColor: 'gray',
+      })}>
+      {/* Always visible */}
+      <Tab.Screen name="Read NFC" component={ReadNFCScreen} />
+
+      {/* Only visible when logged in */}
+      {isLogged && (
+        <Tab.Screen name="Bulk Create" component={CreateBulkBoltcardScreen} />
+      )}
+      {isLogged && (
+        <Tab.Screen name="Wipe Card" component={WipeCardScreen} />
+      )}
+
+      {/* Always visible — Login stack with scan sub-screen */}
+      <Tab.Screen
+        name="Login"
+        options={{headerTitle: props => <LogoTitle title="Login" {...props} />}}
+        children={() => (
+          <CreateBoltcardStack.Navigator screenOptions={{headerShown: false}}>
+            <CreateBoltcardStack.Screen
+              name="LoginScreen"
+              component={LoginScreen}
+              initialParams={{data: null}}
+            />
+            <CreateBoltcardStack.Screen
+              name="ScanScreenLogin"
+              component={ScanScreen}
+            />
+          </CreateBoltcardStack.Navigator>
+        )}
+      />
+    </Tab.Navigator>
   );
 }
 

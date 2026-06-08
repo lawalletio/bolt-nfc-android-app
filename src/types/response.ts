@@ -46,6 +46,23 @@ export type Card = {
   kind: string;
 };
 
+export type InstanceSettings = {
+  community_name: string;
+  domain: string;
+  endpoint: string;
+  subdomain: string;
+  brand_theme: string;       // hex color e.g. "#22c55e"
+  brand_rounding: 'Small' | 'Medium' | 'Large';
+  logotype_url: string;      // full logo with text
+  isotypo_url: string;       // icon / isotype
+  maintenance_enabled: string;
+  social_twitter?: string;
+  social_discord?: string;
+  social_nostr?: string;
+  social_email?: string;
+  social_website?: string;
+};
+
 export type Ntag424WriteData = {
   card_name: string;
   id: string;
