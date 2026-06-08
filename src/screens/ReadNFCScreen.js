@@ -1,164 +1,445 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import {useFocusEffect} from '@react-navigation/native';
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  NativeEventEmitter,
-  NativeModules,
-  Platform,
+  Animated,
   ScrollView,
+  StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import {Button, Card, Paragraph, Title} from 'react-native-paper';
+import {Card as PaperCard} from 'react-native-paper';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
+import NfcManager, {Ndef, NfcTech} from 'react-native-nfc-manager';
 import Ntag424 from '../class/Ntag424';
-import NfcManager, {NfcTech, Ndef} from 'react-native-nfc-manager';
+import {useLaWallet} from '../providers/LaWallet';
 
-export default function ReadNFCScreen(props) {
-  const [cardReadInfo, setCardReadInfo] = useState('');
-  const [ndef, setNdef] = useState('pending...');
-  const [cardUID, setCardUID] = useState();
-  const [key0Changed, setKey0Changed] = useState('Key 0 version pending');
-  const [key1Changed, setKey1Changed] = useState('Key 1 version pending');
-  const [key2Changed, setKey2Changed] = useState('Key 2 version pending');
-  const [key3Changed, setKey3Changed] = useState('Key 3 version pending');
-  const [key4Changed, setKey4Changed] = useState('Key 4 version pending');
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-  const [readyToRead, setReadyToRead] = useState(false);
-  const [readError, setReadError] = useState(null);
+const CARD_TYPES = {
+  '01': 'MIFARE DESFire',
+  '02': 'MIFARE Plus',
+  '03': 'MIFARE Ultralight',
+  '04': 'NTAG',
+  '07': 'NTAG I2C',
+  '08': 'MIFARE DESFire Light',
+};
 
-  const copyToClipboard = () => {
-    Clipboard.setString(cardUID);
-    Toast.show({
-      type: 'success',
-      text1: 'Copied to clipboard'
-    });
-  };
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  const readNfc = async () => {
-    setReadError(null);
-    setKey0Changed("Key 0 version pending");
-    setKey1Changed("Key 1 version pending");
-    setKey2Changed("Key 2 version pending");
-    setKey3Changed("Key 3 version pending");
-    setKey4Changed("Key 4 version pending");
-    setCardReadInfo(null);
-    setNdef(null);
-    setReadyToRead(true);
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function shortKey(pk) {
+  if (!pk) return '—';
+  return `${pk.slice(0, 8)}…${pk.slice(-4)}`;
+}
+
+function InfoRow({label, value, mono, onCopy}) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <View style={styles.infoValueWrap}>
+        <Text
+          style={[styles.infoValue, mono && styles.infoValueMono]}
+          numberOfLines={1}
+          ellipsizeMode="middle">
+          {value}
+        </Text>
+        {onCopy && (
+          <TouchableOpacity onPress={onCopy} style={styles.copyBtn}>
+            <Ionicons name="copy-outline" size={14} color="#888" />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
+export default function ReadNFCScreen() {
+  const {authFetch, isLogged} = useLaWallet();
+
+  // step: 'reading' | 'result' | 'error'
+  const [step, setStep] = useState('reading');
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  // NFC chip data
+  const [chipUID, setChipUID] = useState(null);
+  const [ndefUrl, setNdefUrl] = useState(null);
+  const [chipInfo, setChipInfo] = useState(null); // {type, vendor, mem}
+  const [keyVersions, setKeyVersions] = useState(null); // string[5]
+
+  // Server card data
+  const [serverCard, setServerCard] = useState(null);
+  const [serverLoading, setServerLoading] = useState(false);
+
+  // Pulse animation for the NFC icon
+  const pulse = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(null);
+
+  // Monotonic token identifying the current scan. Leaving the tab (blur) or
+  // starting a new scan bumps it; any in-flight scan whose token is stale must
+  // not touch state — its NFC request was cancelled by us, not failed.
+  const readSeq = useRef(0);
+
+  useEffect(() => {
+    if (step === 'reading') {
+      pulseAnim.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, {
+            toValue: 1.25,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulse, {
+            toValue: 1.0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      pulseAnim.current.start();
+    } else {
+      pulseAnim.current?.stop();
+      pulse.setValue(1);
+    }
+  }, [step, pulse]);
+
+  // ── Core NFC read ───────────────────────────────────────────────────────────
+
+  const readNfc = useCallback(async () => {
+    // Claim this scan slot. The cleanup increments readSeq so any
+    // in-flight scan from a previous focus session sees a mismatch
+    // and exits silently instead of showing an error.
+    const mySeq = ++readSeq.current;
+
+    setStep('reading');
+    setErrorMsg(null);
+    setChipUID(null);
+    setNdefUrl(null);
+    setChipInfo(null);
+    setKeyVersions(null);
+    setServerCard(null);
 
     try {
       await NfcManager.requestTechnology(NfcTech.IsoDep);
       const tag = await NfcManager.getTag();
 
-      const ndefMessage = Ndef.uri.decodePayload(tag.ndefMessage[0].payload);
-      setNdef(ndefMessage);
+      // ── NDEF URL ──
+      let resolvedUrl = null;
+      try {
+        resolvedUrl = Ndef.uri.decodePayload(tag.ndefMessage[0].payload);
+      } catch {}
+      setNdefUrl(resolvedUrl);
 
+      // ── Chip UID ──
+      const uid = tag.id?.toLowerCase() ?? null;
+      setChipUID(uid);
+
+      // ── Card version / type ──
       await Ntag424.isoSelectFileApplication();
-      const cardVersion = await Ntag424.getVersion();
-      const cardTypes = {
-        '01': 'MIFARE DESFire',
-        '02': 'MIFARE Plus',
-        '03': 'MIFARE Ultralight',
-        '04': 'NTAG',
-        '05': 'RFU',
-        '06': 'RFU',
-        '07': 'NTAG I2C',
-        '08': 'MIFARE DESFire Light',
-      };
-      setCardReadInfo(`Tagname: ${cardTypes.hasOwnProperty(cardVersion.HWType) ? cardTypes[cardVersion.HWType]: ''}\nUID:${tag.id} \nTotalMem: ${cardVersion.HWStorageSize == '11' ? 'Between 256B and 512B' : 'RFU'}\nVendor: ${cardVersion.VendorID == '04' ? "NXP" : "Non NXP"}`);
+      const ver = await Ntag424.getVersion();
+      setChipInfo({
+        type: CARD_TYPES[ver.HWType] ?? `Type ${ver.HWType}`,
+        vendor: ver.VendorID === '04' ? 'NXP' : `Vendor ${ver.VendorID}`,
+        mem: ver.HWStorageSize === '11' ? '256–512 B' : `Size ${ver.HWStorageSize}`,
+      });
 
-      setCardUID(tag.id);
-      const key0Version = await Ntag424.getKeyVersion("00");
-      // console.log('key0', key0Version);
-      setKey0Changed("Key 0 version: "+key0Version);
-      const key1Version = await Ntag424.getKeyVersion("01");
-      setKey1Changed("Key 1 version: "+key1Version);
-      const key2Version = await Ntag424.getKeyVersion("02");
-      setKey2Changed("Key 2 version: "+key2Version);
-      const key3Version = await Ntag424.getKeyVersion("03");
-      setKey3Changed("Key 3 version: "+key3Version);
-      const key4Version = await Ntag424.getKeyVersion("04");
-      setKey4Changed("Key 4 version: "+key4Version);
-      
-      
-    } catch (ex) {
-      console.warn('Oops!', ex);
-      var error = ex;
-      if(typeof ex === 'object') {
-        error = "NFC Error: "+(ex.message? ex.message : ex.constructor.name);
-      }
-      setReadError(error);
-    } finally {
-      // stop the nfc scanning
+      // ── Key versions ──
+      const kvs = await Promise.all(
+        ['00', '01', '02', '03', '04'].map(n => Ntag424.getKeyVersion(n)),
+      );
+      setKeyVersions(kvs);
+
       await NfcManager.cancelTechnologyRequest();
-      setReadyToRead(false);
+
+      // Only update state if this scan wasn't cancelled by a tab switch
+      if (mySeq !== readSeq.current) return;
+
+      setStep('result');
+
+      // ── Server lookup (non-blocking) ──
+      if (uid) {
+        // Try NDEF URL card ID first, fall back to chip UID
+        let cardId = uid;
+        if (resolvedUrl) {
+          const m = resolvedUrl.match(/\/api\/cards\/([^/\?]+)/);
+          if (m) cardId = m[1];
+        }
+        fetchServerCard(cardId);
+      }
+    } catch (ex) {
+      await NfcManager.cancelTechnologyRequest().catch(() => {});
+      // If the scan was cancelled because we left the tab, swallow the
+      // error — useFocusEffect will restart a fresh scan on return.
+      if (mySeq !== readSeq.current) return;
+      const msg =
+        typeof ex === 'object'
+          ? 'NFC Error: ' + (ex.message ?? ex.constructor.name)
+          : String(ex);
+      setErrorMsg(msg);
+      setStep('error');
     }
+  }, [authFetch, isLogged]);
+
+  const fetchServerCard = useCallback(
+    async cardId => {
+      if (!isLogged) return;
+      setServerLoading(true);
+      try {
+        const res = await authFetch('/api/cards/' + cardId);
+        if (res.ok) {
+          setServerCard(await res.json());
+        }
+      } catch {}
+      setServerLoading(false);
+    },
+    [authFetch, isLogged],
+  );
+
+  // Auto-start when screen gains focus; cancel + invalidate when it loses focus
+  useFocusEffect(
+    useCallback(() => {
+      readNfc();
+      return () => {
+        // Bump the sequence so the in-flight catch block exits silently
+        readSeq.current++;
+        NfcManager.cancelTechnologyRequest().catch(() => {});
+      };
+    }, [readNfc]),
+  );
+
+  const copyUID = useCallback(() => {
+    if (!chipUID) return;
+    Clipboard.setString(chipUID);
+    Toast.show({type: 'success', text1: 'UID copied to clipboard'});
+  }, [chipUID]);
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
+  // Reading state — centred pulsing icon
+  if (step === 'reading') {
+    return (
+      <View style={styles.readingCenter}>
+        <Animated.View style={{transform: [{scale: pulse}]}}>
+          <Ionicons name="wifi-outline" size={96} color="#f58340" style={styles.nfcIcon} />
+        </Animated.View>
+        <Text style={styles.readingTitle}>Ready to Scan</Text>
+        <Text style={styles.readingSubtitle}>
+          Hold your card to the back of the phone
+        </Text>
+      </View>
+    );
   }
 
+  // Error state
+  if (step === 'error') {
+    return (
+      <View style={styles.readingCenter}>
+        <Ionicons name="alert-circle-outline" size={64} color="#c0392b" />
+        <Text style={styles.errorTitle}>Read Failed</Text>
+        <Text style={styles.errorMsg}>{errorMsg}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={readNfc}>
+          <Ionicons name="refresh" size={16} color="#fff" style={{marginRight: 6}} />
+          <Text style={styles.retryBtnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Result state
   return (
-    <ScrollView style={{}}>
-      {readyToRead ? 
-        <Text
-          style={{
-            margin: 20,
-            fontWeight: 'bold',
-            fontSize: 15,
-            textAlign: 'center',
-          }}>
-          <ActivityIndicator /> Hold NFC card to Reader
-        </Text>
-        :
-        <View style={{marginHorizontal: 10, marginVertical: 20, flexDirection: 'row', justifyContent: 'center'}}>
-          <Button icon="nfc" mode="contained" onPress={readNfc} compact={true} color="#f79928">Read NFC</Button>
-        </View>
-      }
-      {readError && (
-        <Card style={{marginBottom: 20, marginHorizontal: 10}}>
-        <Card.Content>
-          <Title>Tag Read Error</Title>
-          <Paragraph style={{fontWeight: 'bold', fontSize: 15}}>
-            {readError}
-          </Paragraph>
-        </Card.Content>
-      </Card>
-            )}
-      <Card style={{marginBottom: 20, marginHorizontal: 10}}>
-        <Card.Content>
-          <Title>NDEF Record</Title>
-          <Paragraph style={{fontWeight: 'bold', fontSize: 15}}>
-            {ndef}
-          </Paragraph>
-        </Card.Content>
-      </Card>
-      <Card style={{marginBottom: 20, marginHorizontal: 10}}>
-        <Card.Content>
-          <Title>Card UID</Title>
-          <View style={{alignItems: 'flex-start', flexDirection: 'row'}}>
-            {cardUID && <Button onPress={copyToClipboard} mode="contained" color="#f79928">Copy</Button>}
-            <Text style={{lineHeight: 35, marginLeft: 10}}>{cardUID}</Text>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+
+      {/* Header icon + tap-again button */}
+      <View style={styles.resultHeader}>
+        <Ionicons name="wifi" size={40} color="#f58340" />
+        <Text style={styles.resultHeaderText}>Card Read</Text>
+        <TouchableOpacity style={styles.scanAgainBtn} onPress={readNfc}>
+          <Ionicons name="refresh" size={15} color="#f58340" style={{marginRight: 4}} />
+          <Text style={styles.scanAgainText}>Scan Again</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Server card data */}
+      {isLogged && (
+        <PaperCard style={styles.card}>
+          <PaperCard.Content>
+            <View style={styles.cardHeader}>
+              <Ionicons name="server-outline" size={18} color="#555" />
+              <Text style={styles.cardTitle}>LaWallet Record</Text>
+              {serverLoading && <ActivityIndicator size="small" color="#f58340" style={{marginLeft: 8}} />}
+            </View>
+            {serverCard ? (
+              <>
+                <InfoRow
+                  label="Owner"
+                  value={serverCard.username ?? shortKey(serverCard.pubkey)}
+                />
+                <InfoRow label="Design" value={serverCard.design?.description ?? '—'} />
+                <InfoRow label="Kind" value={serverCard.kind ?? '—'} />
+                <InfoRow label="Created" value={formatDate(serverCard.createdAt)} />
+                <InfoRow
+                  label="Last used"
+                  value={serverCard.lastUsedAt ? formatDate(serverCard.lastUsedAt) : 'Never'}
+                />
+              </>
+            ) : !serverLoading ? (
+              <Text style={styles.notFound}>Card not registered in this system.</Text>
+            ) : null}
+          </PaperCard.Content>
+        </PaperCard>
+      )}
+
+      {/* NFC chip data */}
+      <PaperCard style={styles.card}>
+        <PaperCard.Content>
+          <View style={styles.cardHeader}>
+            <Ionicons name="hardware-chip-outline" size={18} color="#555" />
+            <Text style={styles.cardTitle}>Chip Data</Text>
           </View>
-        </Card.Content>
-      </Card>
-      <Card style={{marginBottom: 20, marginHorizontal: 10}}>
-        <Card.Content>
-          <Title>NFC Card Attributes</Title>
-          <Paragraph>{cardReadInfo}</Paragraph>
-        </Card.Content>
-      </Card>
+          <InfoRow label="UID" value={chipUID ?? '—'} mono onCopy={copyUID} />
+          <InfoRow label="NDEF URL" value={ndefUrl ?? '—'} mono />
+          {chipInfo && (
+            <>
+              <InfoRow label="Type" value={chipInfo.type} />
+              <InfoRow label="Vendor" value={chipInfo.vendor} />
+              <InfoRow label="Memory" value={chipInfo.mem} />
+            </>
+          )}
+        </PaperCard.Content>
+      </PaperCard>
 
-      <Card style={{marginBottom: 20, marginHorizontal: 10}}>
-        <Card.Content>
-          <Title>Card Keys</Title>
-          <Paragraph>{key0Changed}</Paragraph>
-          <Paragraph>{key1Changed}</Paragraph>
-          <Paragraph>{key2Changed}</Paragraph>
-          <Paragraph>{key3Changed}</Paragraph>
-          <Paragraph>{key4Changed}</Paragraph>
-        </Card.Content>
-      </Card>
+      {/* Key versions */}
+      {keyVersions && (
+        <PaperCard style={styles.card}>
+          <PaperCard.Content>
+            <View style={styles.cardHeader}>
+              <Ionicons name="key-outline" size={18} color="#555" />
+              <Text style={styles.cardTitle}>Key Versions</Text>
+            </View>
+            {keyVersions.map((v, i) => (
+              <InfoRow key={i} label={`Key ${i}`} value={v ?? '—'} mono />
+            ))}
+          </PaperCard.Content>
+        </PaperCard>
+      )}
 
-      <Text></Text>
+      <View style={{height: 24}} />
     </ScrollView>
   );
 }
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  // Reading / error centered layout
+  readingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    gap: 16,
+  },
+  nfcIcon: {
+    transform: [{rotate: '90deg'}], // wifi icon rotated looks like NFC waves
+  },
+  readingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 8,
+  },
+  readingSubtitle: {
+    fontSize: 15,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#c0392b',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  errorMsg: {
+    fontSize: 14,
+    color: '#555',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f58340',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryBtnText: {color: '#fff', fontWeight: 'bold', fontSize: 15},
+
+  // Result layout
+  scroll: {backgroundColor: '#f2f2f2'},
+  scrollContent: {padding: 12},
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  resultHeaderText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  scanAgainBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#f58340',
+  },
+  scanAgainText: {color: '#f58340', fontSize: 13, fontWeight: '600'},
+
+  // Cards
+  card: {marginBottom: 12},
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  cardTitle: {fontSize: 15, fontWeight: 'bold', color: '#444'},
+  notFound: {fontSize: 13, color: '#999', fontStyle: 'italic'},
+
+  // Info rows
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
+  infoLabel: {fontSize: 13, color: '#888', flex: 1},
+  infoValueWrap: {flex: 2, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6},
+  infoValue: {fontSize: 13, color: '#333', textAlign: 'right', flexShrink: 1},
+  infoValueMono: {fontFamily: 'monospace', fontSize: 11},
+  copyBtn: {padding: 4},
+});

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Image, StyleSheet, View} from 'react-native';
 import {ActivityIndicator, Text} from 'react-native-paper';
 import Dialog from 'react-native-dialog';
 
@@ -14,7 +14,7 @@ import Ntag424 from '../class/Ntag424';
  */
 
 export default function WriteModal(props) {
-  const {cardData} = props;
+  const {cardData, skin} = props;
 
   // Changed
   const [key0Changed, setKey0Changed] = useState(false);
@@ -28,6 +28,9 @@ export default function WriteModal(props) {
   // Test
   const [testBolt, setTestBolt] = useState();
   const [error, setError] = useState();
+
+  // Selected skin image natural aspect ratio (for full, uncropped display)
+  const [skinAspect, setSkinAspect] = useState(1.586);
 
   // Reset
   const reset = useCallback(() => {
@@ -178,8 +181,46 @@ export default function WriteModal(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardData]);
 
+  // Measure the skin image so the preview shows it in full (no cropping).
+  useEffect(() => {
+    if (!skin?.file) {
+      return;
+    }
+    let active = true;
+    const src = skin.file;
+    if (typeof src === 'string') {
+      Image.getSize(
+        src,
+        (w, h) => {
+          if (active && w && h) setSkinAspect(w / h);
+        },
+        () => {},
+      );
+    } else {
+      const resolved = Image.resolveAssetSource(src);
+      if (resolved?.width && resolved?.height) {
+        setSkinAspect(resolved.width / resolved.height);
+      }
+    }
+    return () => {
+      active = false;
+    };
+  }, [skin]);
+
   return (
     <Dialog.Container visible={props.visible}>
+      {/* Selected skin preview */}
+      {skin && (
+        <View style={styles.skinPreview}>
+          <Image
+            source={typeof skin.file === 'string' ? {uri: skin.file} : skin.file}
+            style={[styles.skinImage, {aspectRatio: skinAspect}]}
+            resizeMode="contain"
+          />
+          <Text style={styles.skinLabel}>{skin.label}</Text>
+        </View>
+      )}
+
       <Dialog.Title>
         <Ionicons name="card" size={30} color="green" />
         <Text style={styles.text}> Hold NFC card</Text>
@@ -213,6 +254,25 @@ export default function WriteModal(props) {
 }
 
 const styles = StyleSheet.create({
+  skinPreview: {
+    // Bleed past the dialog's 16px content padding so the card is near
+    // full-width, leaving only a tiny (~4px) margin on each side / top.
+    marginTop: -12,
+    marginHorizontal: -12,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  skinImage: {
+    width: '100%',
+    borderRadius: 8,
+  },
+  skinLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    textAlign: 'center',
+    marginTop: 8,
+  },
   text: {
     fontSize: 20,
     textAlign: 'center',

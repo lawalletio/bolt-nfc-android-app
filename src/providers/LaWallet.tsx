@@ -128,6 +128,9 @@ export const LaWalletProvider = ({children}: {children: React.ReactNode}) => {
           const decoded = decodeJwt(storedToken);
           if (decoded && !isExpired(decoded)) {
             applyJwt(storedToken, decoded);
+            // Fetch server designs so the Bulk Create screen shows the
+            // correct skins instead of the hardcoded fallback list.
+            fetchDesigns().catch(() => {});
           } else {
             // Keep the base URL but drop the stale token.
             await SecureStorage.removeItem(STORAGE_KEYS.DEVICE_TOKEN);
@@ -180,15 +183,20 @@ export const LaWalletProvider = ({children}: {children: React.ReactNode}) => {
     try {
       const res = await authFetch('/api/card-designs/list');
       if (res.ok) {
-        const designs: CardDesign[] = await res.json();
+        const body = await res.json();
+        // Handle both plain array and {data:[]} wrapper shapes
+        const designs: CardDesign[] = Array.isArray(body) ? body : (body?.data ?? []);
+        console.log('[fetchDesigns] received', designs.length, 'designs');
         const mapped: Skin[] = designs
           .filter(d => !d.archivedAt)
           .map(d => ({label: d.description, value: d.id, file: d.imageUrl}));
         setSkins(mapped.length > 0 ? mapped : skinsFile);
       } else {
+        console.log('[fetchDesigns] non-ok response', res.status);
         setSkins(skinsFile);
       }
-    } catch {
+    } catch (e) {
+      console.log('[fetchDesigns] error', e);
       setSkins(skinsFile);
     }
   }, [authFetch]);
@@ -212,6 +220,14 @@ export const LaWalletProvider = ({children}: {children: React.ReactNode}) => {
       const decoded = decodeJwt(token);
       if (!decoded) return {ok: false, reason: 'invalid'};
       if (isExpired(decoded)) return {ok: false, reason: 'expired'};
+
+      // If the JWT carries an apiUrl, adopt it as the base URL so the
+      // operator never has to type it manually.
+      if (decoded.apiUrl) {
+        const normalized = normalizeBaseUrl(decoded.apiUrl);
+        applyBaseUrl(normalized);
+        SecureStorage.setItem(STORAGE_KEYS.BASE_URL, normalized).catch(() => {});
+      }
 
       // Update refs first so authFetch (used by fetchDesigns) sees the new token.
       applyJwt(token, decoded);

@@ -10,6 +10,7 @@ export interface DeviceJwtClaims {
   aud: string;
   exp: number; // seconds since epoch
   iat: number;
+  apiUrl?: string; // LaWallet instance URL — auto-sets baseUrl on login
 }
 
 function base64urlDecode(str: string): string {
