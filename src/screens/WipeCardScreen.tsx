@@ -129,6 +129,16 @@ export default function WipeCardScreen() {
     setStepSynced('reading');
     setErrorMsg(null);
     try {
+      // Clear any stale NFC request left over from another screen/scan so
+      // requestTechnology doesn't fail with "one request at a time" when
+      // arriving from Bulk Create / Read NFC.
+      await NfcManager.start().catch(() => {});
+      await NfcManager.cancelTechnologyRequest().catch(() => {});
+      if (cancelledByBlur.current) {
+        cancelledByBlur.current = false;
+        setStepSynced('tap');
+        return;
+      }
       await NfcManager.requestTechnology(NfcTech.IsoDep, {
         alertMessage: 'Hold your card to the back of your phone',
       });
@@ -207,6 +217,15 @@ export default function WipeCardScreen() {
     const id = card.id;
 
     try {
+      // Clear any stale NFC request so requestTechnology doesn't fail with
+      // "one request at a time" when arriving from another NFC screen.
+      await NfcManager.start().catch(() => {});
+      await NfcManager.cancelTechnologyRequest().catch(() => {});
+      if (cancelledByBlur.current) {
+        cancelledByBlur.current = false;
+        setStepSynced('info');
+        return;
+      }
       await NfcManager.requestTechnology(NfcTech.IsoDep, {
         alertMessage: 'Hold card steady while keys are wiped…',
       });
