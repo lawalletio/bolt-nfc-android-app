@@ -119,9 +119,13 @@ export const LaWalletProvider = ({children}: {children: React.ReactNode}) => {
   useEffect(() => {
     (async () => {
       try {
+        // Never let a stalled native storage call hang app startup: race each
+        // read against a timeout that resolves to null ("no stored value").
+        const readTimeout = (): Promise<null> =>
+          new Promise(res => setTimeout(() => res(null), 4000));
         const [storedUrl, storedToken] = await Promise.all([
-          SecureStorage.getItem(STORAGE_KEYS.BASE_URL),
-          SecureStorage.getItem(STORAGE_KEYS.DEVICE_TOKEN),
+          Promise.race([SecureStorage.getItem(STORAGE_KEYS.BASE_URL), readTimeout()]),
+          Promise.race([SecureStorage.getItem(STORAGE_KEYS.DEVICE_TOKEN), readTimeout()]),
         ]);
         if (storedUrl) applyBaseUrl(storedUrl);
         if (storedToken) {
