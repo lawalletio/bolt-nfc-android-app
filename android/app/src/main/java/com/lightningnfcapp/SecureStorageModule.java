@@ -73,7 +73,7 @@ public class SecureStorageModule extends ReactContextBaseJavaModule {
         try {
             getPrefs().edit().putString(key, value).apply();
             promise.resolve(null);
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (Throwable e) {
             Log.w(Constants.TAG, "SecureStorage.setItem: corruption detected, retrying", e);
             recoverFromCorruption();
             try {
@@ -89,7 +89,7 @@ public class SecureStorageModule extends ReactContextBaseJavaModule {
     public void getItem(String key, Promise promise) {
         try {
             promise.resolve(getPrefs().getString(key, null));
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (Throwable e) {
             Log.w(Constants.TAG, "SecureStorage.getItem: corruption detected, clearing store", e);
             recoverFromCorruption();
             // Return null so the caller treats it as "no stored value" and forces re-login.
@@ -102,7 +102,7 @@ public class SecureStorageModule extends ReactContextBaseJavaModule {
         try {
             getPrefs().edit().remove(key).apply();
             promise.resolve(null);
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (Throwable e) {
             Log.w(Constants.TAG, "SecureStorage.removeItem: corruption detected, clearing store", e);
             recoverFromCorruption();
             promise.resolve(null);
@@ -114,7 +114,7 @@ public class SecureStorageModule extends ReactContextBaseJavaModule {
         try {
             getPrefs().edit().clear().apply();
             promise.resolve(null);
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (Throwable e) {
             Log.w(Constants.TAG, "SecureStorage.clear: corruption detected, force clearing", e);
             recoverFromCorruption();
             promise.resolve(null);

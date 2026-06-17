@@ -1,6 +1,6 @@
 import React from 'react';
 
-import {Alert, Button, StyleSheet} from 'react-native';
+import {Alert, Button, PermissionsAndroid, Platform, StyleSheet} from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 
 import {useCameraDevices} from 'react-native-vision-camera';
@@ -23,8 +23,28 @@ export default function ScanScreen({route, navigation}) {
 
   React.useEffect(() => {
     (async () => {
-      const status = await Camera.requestCameraPermission();
-      setHasPermission(status === 'authorized');
+      try {
+        if (Platform.OS === 'android') {
+          // vision-camera v2's requestCameraPermission() can hang on newer
+          // Android, so use RN's PermissionsAndroid which resolves reliably.
+          const already = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+          );
+          if (already) {
+            setHasPermission(true);
+            return;
+          }
+          const res = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+          );
+          setHasPermission(res === PermissionsAndroid.RESULTS.GRANTED);
+        } else {
+          const status = await Camera.requestCameraPermission();
+          setHasPermission(status === 'authorized');
+        }
+      } catch (e) {
+        console.log('[ScanScreen] permission ERROR: ' + String(e));
+      }
     })();
   }, []);
 
