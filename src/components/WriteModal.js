@@ -1,6 +1,6 @@
-import React, {useCallback, useEffect, useState} from 'react';
-import {Image, StyleSheet, View} from 'react-native';
-import {ActivityIndicator, Text} from 'react-native-paper';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {Animated, Image, StyleSheet, View} from 'react-native';
+import {Text} from 'react-native-paper';
 import Dialog from 'react-native-dialog';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -13,35 +13,159 @@ import Ntag424 from '../class/Ntag424';
  * @param visible: boolean
  */
 
+// Ordered write steps. progress = (completed steps) / TOTAL. The label tells
+// the operator exactly what is being written right now.
+const STEPS = [
+  'Writing card data',
+  'Authenticating',
+  'Configuring card',
+  'Writing Key 1',
+  'Writing Key 2',
+  'Writing Key 3',
+  'Writing Key 4',
+  'Writing Master Key',
+  'Verifying',
+];
+const TOTAL = STEPS.length;
+
+// Determinate circular progress ring built without react-native-svg: two
+// rotating half-disc "blades" over a track, with an inner hole that turns the
+// filled disc into a ring. `progress` is an Animated.Value in [0, 1].
+function CircularProgress({progress, size, thickness, tint, track, bg, children}) {
+  const r = size / 2;
+  const rightRotate = progress.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['0deg', '180deg', '180deg'],
+  });
+  const leftRotate = progress.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['180deg', '180deg', '360deg'],
+  });
+
+  const blade = (rotate, side) => (
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        [side]: 0,
+        width: r,
+        height: size,
+        overflow: 'hidden',
+      }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: side === 'right' ? -r : 0,
+          width: size,
+          height: size,
+          transform: [{rotate}],
+        }}>
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: r,
+            height: size,
+            overflow: 'hidden',
+          }}>
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderRadius: r,
+              backgroundColor: tint,
+            }}
+          />
+        </View>
+      </Animated.View>
+    </View>
+  );
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+      {/* Track */}
+      <View
+        style={{
+          position: 'absolute',
+          width: size,
+          height: size,
+          borderRadius: r,
+          backgroundColor: track,
+        }}
+      />
+      {blade(rightRotate, 'right')}
+      {blade(leftRotate, 'left')}
+      {/* Inner hole turns the disc into a ring */}
+      <View
+        style={{
+          position: 'absolute',
+          width: size - thickness * 2,
+          height: size - thickness * 2,
+          borderRadius: (size - thickness * 2) / 2,
+          backgroundColor: bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
 export default function WriteModal(props) {
   const {cardData, skin} = props;
 
-  // Changed
-  const [key0Changed, setKey0Changed] = useState(false);
-  const [key1Changed, setKey1Changed] = useState(false);
-  const [key2Changed, setKey2Changed] = useState(false);
-  const [key3Changed, setKey3Changed] = useState(false);
-  const [key4Changed, setKey4Changed] = useState(false);
-
   const [isLoading, setIsLoading] = useState(false);
-
-  // Test
-  const [testBolt, setTestBolt] = useState();
   const [error, setError] = useState();
 
   // Selected skin image natural aspect ratio (for full, uncropped display)
   const [skinAspect, setSkinAspect] = useState(1.586);
 
+  // Write progress
+  const progress = useRef(new Animated.Value(0)).current;
+  const [stepLabel, setStepLabel] = useState('');
+  const [pct, setPct] = useState(0);
+
+  // Move the ring/label to step `i` (label = what's being written now, ring =
+  // steps already completed).
+  const advance = useCallback(
+    i => {
+      setStepLabel(STEPS[i] ?? 'Done');
+      const value = Math.min(i / TOTAL, 1);
+      setPct(Math.round(value * 100));
+      Animated.timing(progress, {
+        toValue: value,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    },
+    [progress],
+  );
+
+  const finishProgress = useCallback(() => {
+    setStepLabel('Done');
+    setPct(100);
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [progress]);
+
   // Reset
   const reset = useCallback(() => {
-    console.info('reset!');
-    setKey0Changed(false);
-    setKey1Changed(false);
-    setKey2Changed(false);
-    setKey3Changed(false);
-    setKey4Changed(false);
-    setTestBolt();
-  }, []);
+    setStepLabel('');
+    setPct(0);
+    progress.setValue(0);
+  }, [progress]);
 
   // Write card
   const write = useCallback(async () => {
@@ -49,11 +173,6 @@ export default function WriteModal(props) {
     const {lnurlw_base, k0, k1, k2, k3, k4, privateUID} = cardData;
 
     try {
-      // register for the NFC tag with NDEF in it
-      console.info('Starting...');
-
-      console.info("NFCManager: we're ready to write!");
-
       //set ndef
       const ndefMessage =
         lnurlw_base +
@@ -63,12 +182,11 @@ export default function WriteModal(props) {
       const message = [Ndef.uriRecord(ndefMessage)];
       const bytes = Ndef.encodeMessage(message);
 
-      console.info('Waitin!');
+      advance(0); // Writing card data
       await Ntag424.setNdefMessage(bytes);
-      //   setNdefWritten('success');
 
       const key0 = '00000000000000000000000000000000';
-      // //auth first
+      advance(1); // Authenticating
       await Ntag424.AuthEv2First('00', key0);
 
       if (privateUID) {
@@ -78,7 +196,7 @@ export default function WriteModal(props) {
       const piccOffset = ndefMessage.indexOf('p=') + 9;
       const macOffset = ndefMessage.indexOf('c=') + 9;
 
-      //change file settings
+      advance(2); // Configuring card
       await Ntag424.setBoltCardFileSettings(piccOffset, macOffset);
 
       //get uid
@@ -86,21 +204,18 @@ export default function WriteModal(props) {
       console.log('************* UID *************', uid);
 
       //change keys
-      console.log('changekey 1');
+      advance(3); // Writing Key 1
       await Ntag424.changeKey('01', key0, k1, '01');
-      setKey1Changed(true);
-      console.log('changekey 2');
+      advance(4); // Writing Key 2
       await Ntag424.changeKey('02', key0, k2, '01');
-      setKey2Changed(true);
-      console.log('changekey 3');
+      advance(5); // Writing Key 3
       await Ntag424.changeKey('03', key0, k3, '01');
-      setKey3Changed(true);
-      console.log('changekey 4');
+      advance(6); // Writing Key 4
       await Ntag424.changeKey('04', key0, k4, '01');
-      setKey4Changed(true);
-      console.log('changekey 0');
+      advance(7); // Writing Master Key
       await Ntag424.changeKey('00', key0, k0, '01');
-      setKey0Changed(true);
+
+      advance(8); // Verifying
 
       //set offset for ndef header
       const ndef = await Ntag424.readData('060000');
@@ -110,12 +225,8 @@ export default function WriteModal(props) {
       const httpsLNURL = setNdefMessage.replace('lnurlw://', 'https://');
       fetch(httpsLNURL)
         .then(response => response.json())
-        .then(json => {
-          setTestBolt('success');
-        })
-        .catch(error => {
-          setTestBolt('Error: ' + error.message);
-        });
+        .then(() => {})
+        .catch(() => {});
 
       await Ntag424.AuthEv2First('00', k0);
 
@@ -128,15 +239,16 @@ export default function WriteModal(props) {
       );
       if (!('p' in params)) {
         console.info('no p value to test');
+        finishProgress();
+        props.onSuccess && props.onSuccess();
         return;
       }
       if (!('c' in params)) {
         console.info('no c value to test');
+        finishProgress();
+        props.onSuccess && props.onSuccess();
         return;
       }
-
-      console.info('^^^^^^^^^ PARAMS ^^^^^^^^^^');
-      console.info(JSON.stringify(params));
 
       const pVal = params.p;
       const cVal = params.c.slice(0, 16);
@@ -149,17 +261,17 @@ export default function WriteModal(props) {
       if (!testResult.pTest || !testResult.cTest) {
         console.error('Error on tests of decrypt');
       }
+
+      finishProgress();
       props.onSuccess && props.onSuccess();
     } catch (ex) {
       console.error('Oops!', ex);
-      setError(ex);
       var _error = ex;
       if (typeof ex === 'object') {
         _error =
           'NFC Error: ' + (ex.message ? ex.message : ex.constructor.name);
       }
       setError(_error);
-      console.info('setTagTypeError: ' + error);
     } finally {
       // stop the nfc scanning
       NfcManager.cancelTechnologyRequest();
@@ -167,9 +279,10 @@ export default function WriteModal(props) {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardData, props]);
+  }, [cardData, advance, finishProgress, props]);
 
-  // On cardData change
+  // On cardData change — the write (and the progress animation) starts the
+  // moment a card is detected and its keys arrive from the server.
   useEffect(() => {
     setError();
     if (!cardData) {
@@ -226,24 +339,26 @@ export default function WriteModal(props) {
         <Text style={styles.text}> Hold NFC card</Text>
       </Dialog.Title>
 
-      {isLoading && (
-        <Text style={styles.activity}>
-          <ActivityIndicator size="large" />
-        </Text>
-      )}
-
       {cardData && (
-        <View>
+        <View style={styles.body}>
           {error ? (
-            <Text style={styles.error}>{error}</Text>
+            <Text style={styles.error}>{String(error)}</Text>
           ) : (
-            <>
-              <Text>k1: {key1Changed ? 'Written' : cardData.k1}</Text>
-              <Text>k2: {key2Changed ? 'Written' : cardData.k2}</Text>
-              <Text>k3: {key3Changed ? 'Written' : cardData.k3}</Text>
-              <Text>k4: {key4Changed ? 'Written' : cardData.k4}</Text>
-              <Text>k0: {key0Changed ? 'Written' : cardData.k0}</Text>
-            </>
+            <View style={styles.progressWrap}>
+              <CircularProgress
+                progress={progress}
+                size={132}
+                thickness={12}
+                tint="#f58340"
+                track="#ececec"
+                bg="#ffffff">
+                <Text style={styles.progressPct}>{pct}%</Text>
+              </CircularProgress>
+              <Text style={styles.progressLabel}>
+                {stepLabel || 'Starting…'}
+              </Text>
+              <Text style={styles.progressHint}>Keep the card on the phone</Text>
+            </View>
           )}
         </View>
       )}
@@ -278,13 +393,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderColor: 'black',
   },
-  error: {
-    fontSize: 20,
-    textAlign: 'center',
-    borderColor: 'red',
+  body: {
+    alignItems: 'center',
   },
-  activity: {
+  progressWrap: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  progressPct: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  progressLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#f58340',
     textAlign: 'center',
-    padding: 20,
+  },
+  progressHint: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+  },
+  error: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#c0392b',
+    paddingVertical: 12,
   },
 });

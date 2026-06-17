@@ -4,7 +4,9 @@ import {useNavigation} from '@react-navigation/native';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -185,8 +187,26 @@ export default function CreateBulkBoltcardScreen() {
         });
 
         if (!createRes.ok) {
-          const msg = await createRes.text().catch(() => '');
-          alert(`Server error ${createRes.status}: ${msg}`);
+          const raw = await createRes.text().catch(() => '');
+          let parsed: any = null;
+          try {
+            parsed = raw ? JSON.parse(raw) : null;
+          } catch {}
+          const serverMsg = parsed?.message || raw;
+
+          if (createRes.status === 409) {
+            // The chip UID is already registered on the server.
+            const msg = serverMsg || 'A card with this UID already exists.';
+            setError(msg);
+            Alert.alert(
+              'Card already registered',
+              `${msg}\n\nIf you want to re-provision it, wipe the card first.`,
+            );
+          } else {
+            const msg = serverMsg || `Server error ${createRes.status}`;
+            setError(msg);
+            Alert.alert('Could not create card', msg);
+          }
           setCardStatus(CardStatus.IDLE);
           return;
         }
@@ -334,11 +354,15 @@ export default function CreateBulkBoltcardScreen() {
 
   // NFC / creating in progress
   if (cardStatus === CardStatus.READING || cardStatus === CardStatus.CREATING_CARD) {
-    // Fit the selected card image within a bounded preview box (no cropping).
-    let previewW = 200;
+    // Card preview spans nearly the full screen width (small side margin),
+    // height from the image aspect ratio, capped so it can't push the
+    // spinner/title off-screen.
+    const screen = Dimensions.get('window');
+    let previewW = screen.width - 32; // ~16px margin each side
     let previewH = previewW / skinAspect;
-    if (previewH > 240) {
-      previewH = 240;
+    const maxH = screen.height * 0.4;
+    if (previewH > maxH) {
+      previewH = maxH;
       previewW = previewH * skinAspect;
     }
     return (
@@ -660,7 +684,7 @@ const styles = StyleSheet.create({
   nfcCenter: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 16,
     paddingTop: 40,
     paddingBottom: 28,
     backgroundColor: '#f2f2f2',
