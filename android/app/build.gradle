@@ -114,6 +114,14 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 25
         versionName "0.3.0"
+        // Restrict native builds to the configured ABI(s). With ABI splits
+        // disabled, this is what actually keeps the (universal) APK arm64-only
+        // and stops third-party CMake modules (vision-camera) from building
+        // armeabi-v7a, which reanimated's prefab no longer supports. Driven by
+        // reactNativeArchitectures so `-PreactNativeArchitectures=...` still works.
+        ndk {
+            abiFilters(*reactNativeArchitectures())
+        }
     }
 
     splits {

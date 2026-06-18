@@ -35,6 +35,13 @@ subprojects { subproject ->
             android {
                 defaultConfig {
                     minSdkVersion 23
+                    // reanimated's prefab ships only 64-bit libs, so building
+                    // vision-camera for armeabi-v7a/x86 fails with CXX1210 on any
+                    // native re-configure. Pin it to the app's target ABI(s)
+                    // (arm64-v8a by default; honors -PreactNativeArchitectures).
+                    ndk {
+                        abiFilters(*((project.findProperty('reactNativeArchitectures') ?: 'arm64-v8a').toString().split(',')))
+                    }
                 }
             }
         }
