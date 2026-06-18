@@ -115,7 +115,7 @@ function InstanceHero({settings}: {settings: InstanceSettings}) {
             <View style={styles.heroPill}>
               <Ionicons name="server-outline" size={11} color="rgba(255,255,255,0.75)" />
               <Text style={styles.heroPillText} numberOfLines={1}>
-                {settings.endpoint.replace(/^https?:\/\//, '')}
+                {settings.endpoint}
               </Text>
             </View>
           </View>
@@ -266,6 +266,9 @@ export default function LoginScreen({route}) {
                   <Ionicons name="checkmark-circle" size={18} color="green" />
                   <Text style={styles.infoText}> Logged in</Text>
                 </View>
+                <Text style={styles.detail} numberOfLines={1}>
+                  Endpoint: {baseUrl}
+                </Text>
                 <Text style={styles.detail}>Pubkey: {shortPubkey}</Text>
                 <Text style={styles.detail}>
                   Scopes: {scopes.join(', ') || '—'}
