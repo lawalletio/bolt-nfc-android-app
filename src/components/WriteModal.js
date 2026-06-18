@@ -30,14 +30,12 @@ const TOTAL = STEPS.length;
 
 // Determinate circular progress, built without react-native-svg so it always
 // renders inside react-native-dialog's Modal: a circular track that fills from
-// the bottom (an Animated height clipped to the circle by overflow:hidden),
-// with an inner hole turning it into a ring. progress is Animated.Value [0,1].
-function CircularProgress({progress, size, thickness, tint, track, bg, children}) {
+// the bottom, with an inner hole turning it into a ring. Driven purely by the
+// `pct` (0-100) state — NO Animated — so it re-renders reliably even while the
+// JS thread is busy with NFC/crypto (Animated frames would be starved there).
+function CircularProgress({pct, size, thickness, tint, track, bg, children}) {
   const r = size / 2;
-  const fillHeight = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, size],
-  });
+  const fillHeight = (size * Math.max(0, Math.min(100, pct))) / 100;
   return (
     <View
       style={{
@@ -50,7 +48,7 @@ function CircularProgress({progress, size, thickness, tint, track, bg, children}
         justifyContent: 'center',
       }}>
       {/* Fill rises from the bottom as progress increases */}
-      <Animated.View
+      <View
         style={{
           position: 'absolute',
           left: 0,
@@ -86,7 +84,6 @@ export default function WriteModal(props) {
   const [skinAspect, setSkinAspect] = useState(1.586);
 
   // Write progress
-  const progress = useRef(new Animated.Value(0)).current;
   const [stepLabel, setStepLabel] = useState('');
   const [pct, setPct] = useState(0);
   const [done, setDone] = useState(false);
@@ -95,28 +92,21 @@ export default function WriteModal(props) {
   // Move the ring/label to step `i` (label = what's being written now, ring =
   // steps already completed).
   const advance = useCallback(
-    i => {
+    async i => {
       setStepLabel(STEPS[i] ?? 'Done');
-      const value = Math.min(i / TOTAL, 1);
-      setPct(Math.round(value * 100));
-      Animated.timing(progress, {
-        toValue: value,
-        duration: 250,
-        useNativeDriver: false,
-      }).start();
+      setPct(Math.round(Math.min(i / TOTAL, 1) * 100));
+      // Yield so React commits this render (and the user sees it) before the
+      // next blocking NFC/crypto step — the busy JS thread would otherwise
+      // starve the progress updates, which is why the real write showed none.
+      await new Promise(res => setTimeout(res, 60));
     },
-    [progress],
+    [],
   );
 
   const finishProgress = useCallback(() => {
     setStepLabel('Done');
     setPct(100);
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 250,
-      useNativeDriver: false,
-    }).start();
-  }, [progress]);
+  }, []);
 
   // Fill the ring to 100%, play the success check-mark, then close.
   const succeed = useCallback(() => {
@@ -138,9 +128,8 @@ export default function WriteModal(props) {
     setStepLabel('');
     setPct(0);
     setDone(false);
-    progress.setValue(0);
     checkScale.setValue(0);
-  }, [progress, checkScale]);
+  }, [checkScale]);
 
   // Write card
   const write = useCallback(async () => {
@@ -157,11 +146,11 @@ export default function WriteModal(props) {
       const message = [Ndef.uriRecord(ndefMessage)];
       const bytes = Ndef.encodeMessage(message);
 
-      advance(0); // Writing card data
+      await advance(0); // Writing card data
       await Ntag424.setNdefMessage(bytes);
 
       const key0 = '00000000000000000000000000000000';
-      advance(1); // Authenticating
+      await advance(1); // Authenticating
       await Ntag424.AuthEv2First('00', key0);
 
       if (privateUID) {
@@ -171,7 +160,7 @@ export default function WriteModal(props) {
       const piccOffset = ndefMessage.indexOf('p=') + 9;
       const macOffset = ndefMessage.indexOf('c=') + 9;
 
-      advance(2); // Configuring card
+      await advance(2); // Configuring card
       await Ntag424.setBoltCardFileSettings(piccOffset, macOffset);
 
       //get uid
@@ -179,18 +168,18 @@ export default function WriteModal(props) {
       console.log('************* UID *************', uid);
 
       //change keys
-      advance(3); // Writing Key 1
+      await advance(3); // Writing Key 1
       await Ntag424.changeKey('01', key0, k1, '01');
-      advance(4); // Writing Key 2
+      await advance(4); // Writing Key 2
       await Ntag424.changeKey('02', key0, k2, '01');
-      advance(5); // Writing Key 3
+      await advance(5); // Writing Key 3
       await Ntag424.changeKey('03', key0, k3, '01');
-      advance(6); // Writing Key 4
+      await advance(6); // Writing Key 4
       await Ntag424.changeKey('04', key0, k4, '01');
-      advance(7); // Writing Master Key
+      await advance(7); // Writing Master Key
       await Ntag424.changeKey('00', key0, k0, '01');
 
-      advance(8); // Verifying
+      await advance(8); // Verifying
 
       //set offset for ndef header
       const ndef = await Ntag424.readData('060000');
@@ -256,7 +245,7 @@ export default function WriteModal(props) {
   // Simulate the write steps (no NFC) so the progress UI can be tested.
   const mockWrite = useCallback(async () => {
     for (let i = 0; i < TOTAL; i++) {
-      advance(i);
+      await advance(i);
       // eslint-disable-next-line no-await-in-loop
       await new Promise(res => setTimeout(res, 500));
     }
@@ -341,7 +330,7 @@ export default function WriteModal(props) {
           ) : (
             <View style={styles.progressWrap}>
               <CircularProgress
-                progress={progress}
+                pct={pct}
                 size={132}
                 thickness={12}
                 tint="#f58340"
