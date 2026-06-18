@@ -1,947 +1,133 @@
 package com.lacrypta.cardinstaller;
 
-
-import static com.lacrypta.cardinstaller.Constants.ALIAS_DEFAULT_FF;
-import static com.lacrypta.cardinstaller.Constants.ALIAS_KEY_2KTDES;
-import static com.lacrypta.cardinstaller.Constants.ALIAS_KEY_2KTDES_ULC;
-import static com.lacrypta.cardinstaller.Constants.ALIAS_KEY_AES128;
-import static com.lacrypta.cardinstaller.Constants.ALIAS_KEY_AES128_ZEROES;
-import static com.lacrypta.cardinstaller.Constants.EMPTY_SPACE;
-import static com.lacrypta.cardinstaller.Constants.EXTRA_KEYS_STORED_FLAG;
-import static com.lacrypta.cardinstaller.Constants.KEY_AES128_DEFAULT;
-import static com.lacrypta.cardinstaller.Constants.KEY_APP_MASTER;
-import static com.lacrypta.cardinstaller.Constants.PRINT;
-import static com.lacrypta.cardinstaller.Constants.STORAGE_PERMISSION_WRITE;
-import static com.lacrypta.cardinstaller.Constants.TAG;
-import static com.lacrypta.cardinstaller.Constants.TOAST;
-import static com.lacrypta.cardinstaller.Constants.TOAST_PRINT;
-import static com.lacrypta.cardinstaller.Constants.bytesKey;
-import static com.lacrypta.cardinstaller.Constants.cipher;
-import static com.lacrypta.cardinstaller.Constants.default_ff_key;
-import static com.lacrypta.cardinstaller.Constants.default_zeroes_key;
-import static com.lacrypta.cardinstaller.Constants.iv;
-import static com.lacrypta.cardinstaller.Constants.objKEY_2KTDES;
-import static com.lacrypta.cardinstaller.Constants.objKEY_2KTDES_ULC;
-import static com.lacrypta.cardinstaller.Constants.objKEY_AES128;
-
-
-import com.lacrypta.cardinstaller.R;
-import com.nxp.nfclib.CardType;
-import com.nxp.nfclib.NxpNfcLib;
-import com.nxp.nfclib.classic.ClassicFactory;
-import com.nxp.nfclib.defaultimpl.KeyData;
-import com.nxp.nfclib.desfire.IDESFireEV2;
-import com.nxp.nfclib.desfire.IDESFireEV3;
-import com.nxp.nfclib.desfire.IDESFireEV3C;
-import com.nxp.nfclib.desfire.IDESFireLight;
-import com.nxp.nfclib.desfire.IMIFAREIdentity;
-import com.nxp.nfclib.exceptions.NxpNfcLibException;
-import com.nxp.nfclib.icode.ICodeFactory;
-import com.nxp.nfclib.ntag.NTagFactory;
-import com.nxp.nfclib.plus.IPlus;
-import com.nxp.nfclib.plus.IPlusEV1SL0;
-import com.nxp.nfclib.plus.IPlusEV1SL1;
-import com.nxp.nfclib.plus.IPlusEV1SL3;
-import com.nxp.nfclib.plus.IPlusSL0;
-import com.nxp.nfclib.plus.IPlusSL1;
-import com.nxp.nfclib.plus.IPlusSL3;
-import com.nxp.nfclib.plus.PlusFactory;
-import com.nxp.nfclib.plus.PlusSL1Factory;
-import com.nxp.nfclib.ultralight.UltralightFactory;
-import com.nxp.nfclib.utils.NxpLogUtils;
-import com.nxp.nfclib.utils.Utilities;
-import com.nxp.nfclib.ndef.INdefMessage;
-import com.nxp.nfclib.ndef.NdefMessageWrapper;
-import com.nxp.nfclib.ndef.NdefRecordWrapper;
-import com.nxp.nfclib.exceptions.UsageException;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.security.Key;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.List;
-import java.util.ArrayList;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.codec.binary.Hex;
-
-import android.Manifest;
-import android.annotation.TargetApi;
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.AlertDialog;
-import android.app.PendingIntent;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.graphics.Point;
-import android.graphics.Typeface;
-import android.nfc.NfcAdapter;
-import android.nfc.Tag;
-import android.nfc.tech.MifareClassic;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.preference.PreferenceManager;
-import android.text.Html;
-import android.text.method.ScrollingMovementMethod;
-import android.util.Log;
-import android.view.Display;
-import android.view.Gravity;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.animation.AnimationUtils;
 import android.view.KeyEvent;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.util.Base64;
-
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.spec.GCMParameterSpec;
 
 import com.facebook.react.ReactActivity;
 import com.facebook.react.ReactActivityDelegate;
-import com.facebook.react.ReactRootView;
 import com.facebook.react.ReactInstanceManager;
-import com.facebook.react.PackageList;
 import com.facebook.react.ReactPackage;
-import com.facebook.react.common.LifecycleState;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.Callback;
-import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.ReactRootView;
+import com.facebook.react.PackageList;
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint;
 import com.facebook.react.defaults.DefaultReactActivityDelegate;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import org.bouncycastle.crypto.engines.AESEngine;
-import org.bouncycastle.crypto.macs.CMac;
-import org.bouncycastle.crypto.BlockCipher;
-import org.bouncycastle.crypto.CipherParameters;
-import org.bouncycastle.crypto.params.KeyParameter;
-import org.bouncycastle.crypto.engines.AESFastEngine;
-import org.bouncycastle.crypto.Mac;
+import java.util.List;
 
-
-import java.util.HashMap;
-import java.util.Map;
-import com.google.common.collect.ImmutableMap;
-
+/**
+ * App entry point. NTAG424 NFC is handled entirely in JavaScript through
+ * react-native-nfc-manager (raw ISO-DEP APDUs + AES via CryptoJS). The legacy
+ * native NXP TapLinX integration has been removed — it required a paid license
+ * and is no longer used.
+ */
 public class MainActivity extends ReactActivity {
 
-  /**
-   * NxpNfclib instance.
-   */
-  private NxpNfcLib libInstance = null;
-
-  private final StringBuilder stringBuilder = new StringBuilder();
-
-  private ReactRootView mReactRootView; //change
+  private ReactRootView mReactRootView;
   private ReactInstanceManager mReactInstanceManager;
 
-  private final String CARD_MODE_READ = "read";
-  private final String CARD_MODE_RESETKEYS = "resetkeys";
-  private final String CARD_MODE_CREATEBOLTCARD = "createBoltcard";
-  
-  private String cardmode = CARD_MODE_READ;
-  private String lnurlw_base = "";
-  private String packageKey = BuildConfig.MIFARE_KEY;
-
-  private byte[] key0;
-  private byte[] key1;
-  private byte[] key2;
-  private byte[] key3;
-  private byte[] key4;
-
-  private boolean randomUID = false;
-
-  private String[] resetKeys;
-  private String uid;
-
-  
   @Override
   protected void onCreate(Bundle savedInstanceState) {
-    // Set the theme to AppTheme BEFORE onCreate to support 
-    // coloring the background, status bar, and navigation bar.
-    // This is required for expo-splash-screen.
+    // Set the theme to AppTheme BEFORE onCreate to support coloring the
+    // background, status bar, and navigation bar.
     setTheme(R.style.AppTheme);
     super.onCreate(savedInstanceState);
 
     mReactRootView = new ReactRootView(this);
     List<ReactPackage> packages = new PackageList(getApplication()).getPackages();
-    // mReactInstanceManager = ReactInstanceManager.builder()
-    //             .setJavaScriptExecutorFactory(HermesExecutorFactory())
-    //             .setApplication(getApplication())
-    //             .setCurrentActivity(this)
-    //             .setBundleAssetName("index.android.bundle")
-    //             .setJSMainModulePath("index")
-    //             .addPackages(packages)
-    //             .setUseDeveloperSupport(BuildConfig.DEBUG)
-    //             .setInitialLifecycleState(LifecycleState.RESUMED)
-    //             .build();
-
     mReactInstanceManager = this.getReactInstanceManager();
 
-
-    // The string here (e.g. "MyReactNativeApp") has to match
-    // the string in AppRegistry.registerComponent() in index.js
+    // The string here must match AppRegistry.registerComponent() in index.js.
     Bundle initialProperties = new Bundle();
     mReactRootView.startReactApplication(mReactInstanceManager, "cardinstaller", initialProperties);
-
-    /* Initialize the library and register to this activity */
-    initializeLibrary();
-
-    initializeKeys();
-
-    /* Initialize the Cipher and init vector of 16 bytes with 0xCD */
-    initializeCipherinitVector();
   }
 
   /**
-   * Initialize the library and register to this activity.
-   */
-  private void initializeLibrary() {
-      // TapLinX (NXP) is intentionally NOT registered. Every NTAG424 operation
-      // runs through the JS Ntag424 implementation over react-native-nfc-manager
-      // (raw ISO-DEP APDUs + AES via CryptoJS), which needs no license.
-      // Calling registerActivity() would trigger "TapLinX registration failed
-      // after Free Trial. Provide Valid License Key" once the trial expires.
-  }
-
-  private void initializeKeys() {
-    KeyInfoProvider infoProvider = KeyInfoProvider.getInstance(getApplicationContext());
-
-    SharedPreferences sharedPrefs = getPreferences(Context.MODE_PRIVATE);
-    boolean keysStoredFlag = sharedPrefs.getBoolean(EXTRA_KEYS_STORED_FLAG, false);
-    if (!keysStoredFlag) {
-        //Set Key stores the key in persistent storage, this method can be called only once
-        // if key for a given alias does not change.
-        byte[] ulc24Keys = new byte[24];
-        System.arraycopy(SampleAppKeys.KEY_2KTDES_ULC, 0, ulc24Keys, 0, SampleAppKeys.KEY_2KTDES_ULC.length);
-        System.arraycopy(SampleAppKeys.KEY_2KTDES_ULC, 0, ulc24Keys, SampleAppKeys.KEY_2KTDES_ULC.length, 8);
-        infoProvider.setKey(ALIAS_KEY_2KTDES_ULC, SampleAppKeys.EnumKeyType.EnumDESKey, ulc24Keys);
-
-        infoProvider.setKey(ALIAS_KEY_2KTDES, SampleAppKeys.EnumKeyType.EnumDESKey, SampleAppKeys.KEY_2KTDES);
-        infoProvider.setKey(ALIAS_KEY_AES128, SampleAppKeys.EnumKeyType.EnumAESKey, SampleAppKeys.KEY_AES128);
-        infoProvider.setKey(ALIAS_KEY_AES128_ZEROES, SampleAppKeys.EnumKeyType.EnumAESKey, SampleAppKeys.KEY_AES128_ZEROS);
-        infoProvider.setKey(ALIAS_DEFAULT_FF, SampleAppKeys.EnumKeyType.EnumMifareKey, SampleAppKeys.KEY_DEFAULT_FF);
-
-        sharedPrefs.edit().putBoolean(EXTRA_KEYS_STORED_FLAG, true).apply();
-        //If you want to store a new key after key initialization above, kindly reset the
-        // flag EXTRA_KEYS_STORED_FLAG to false in shared preferences.
-    }
-    try {
-
-        objKEY_2KTDES_ULC = infoProvider.getKey(ALIAS_KEY_2KTDES_ULC, SampleAppKeys.EnumKeyType.EnumDESKey);
-        objKEY_2KTDES = infoProvider.getKey(ALIAS_KEY_2KTDES, SampleAppKeys.EnumKeyType.EnumDESKey);
-        objKEY_AES128 = infoProvider.getKey(ALIAS_KEY_AES128, SampleAppKeys.EnumKeyType.EnumAESKey);
-        default_zeroes_key = infoProvider.getKey(ALIAS_KEY_AES128_ZEROES, SampleAppKeys.EnumKeyType.EnumAESKey);
-        default_ff_key = infoProvider.getMifareKey(ALIAS_DEFAULT_FF);
-    } catch (Exception e) {
-        ((ActivityManager) Objects.requireNonNull(MainActivity.this.getSystemService(ACTIVITY_SERVICE))).clearApplicationUserData();
-    }
-  }
-
-  
-  /**
-   * Initialize the Cipher and init vector of 16 bytes with 0xCD.
-   */
-  private void initializeCipherinitVector() {
-    /* Initialize the Cipher */
-    try {
-        cipher = Cipher.getInstance("AES/CBC/NoPadding");
-    } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-        e.printStackTrace();
-    }
-    /* set Application Master Key */
-    bytesKey = KEY_APP_MASTER.getBytes();
-
-    /* Initialize init vector of 16 bytes with 0xCD. It could be anything */
-    byte[] ivSpec = new byte[16];
-    Arrays.fill(ivSpec, (byte) 0xCD);
-    iv = new IvParameterSpec(ivSpec);
-  }
-
-  /**
-   * (non-Javadoc).
-   *
-   * @param intent NFC intent from the android framework.
-   * // @see android.app.Activity#onNewIntent(android.content.Intent)
+   * NFC tags are handled by react-native-nfc-manager (reader mode) + the JS
+   * Ntag424 implementation — never through a native path. Just defer to the
+   * framework (this also avoids the NPE when intent.getAction() was null).
    */
   @Override
   public void onNewIntent(final Intent intent) {
-    // NFC tags are handled by react-native-nfc-manager (reader mode) together
-    // with the JS Ntag424 implementation — never through the legacy TapLinX
-    // path (which needs a license). Just defer to the framework. This also
-    // fixes the NPE that occurred when intent.getAction() was null.
     super.onNewIntent(intent);
-  }
-
-  /**
-   * Authenticates with the change key (key 0) and checks the card is the correct type and format.
-   * @param intent
-   * @return
-   */
-  public BoltCardWrapper authenticateWithDefaultChangeKey(BoltCardWrapper boltCardWrapper, boolean first) throws Exception {
-    KeyData aesKeyData = new KeyData();
-    Key keyDefault = new SecretKeySpec(KEY_AES128_DEFAULT, "AES");
-    aesKeyData.setKey(keyDefault);
-    if(first) boltCardWrapper.authenticateEV2First(0, aesKeyData, null);
-    else boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-    return boltCardWrapper;
-  }
-
-  /**
-   * Completely create a boltcard using the preset keys and lnurlw
-   * 
-   * @param boltCardWrapper
-   * @throws Exception
-   */
-  private void createBoltCard(BoltCardWrapper boltCardWrapper) throws Exception{
-    String tagname = boltCardWrapper.getType().getTagName() + boltCardWrapper.getType().getDescription();
-    String UID = Utilities.dumpBytes(boltCardWrapper.getUID());
-    sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-      put("tagname", tagname);
-      put("cardUID", UID.substring(2));
-    }});
-    
-    // String [] keyChecks = checkKeys(boltCardWrapper);
-    // sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-    //   put("key0Changed", keyChecks[0]);
-    //   put("key1Changed", keyChecks[1]);
-    //   put("key2Changed", keyChecks[2]);
-    //   put("key3Changed", keyChecks[3]);
-    //   put("key4Changed", keyChecks[4]);
-    // }});
-
-    //write the NDEF and the file settings
-    try {
-      int piccOffset = this.lnurlw_base.length() + 10;
-      int macOffset = this.lnurlw_base.length() + 45;
-      
-      NdefMessageWrapper msg = new NdefMessageWrapper(
-        NdefRecordWrapper.createUri(
-          this.lnurlw_base.indexOf("?") == -1 ? 
-            this.lnurlw_base+"?p=00000000000000000000000000000000&c=0000000000000000"
-          :
-            this.lnurlw_base+"&p=00000000000000000000000000000000&c=0000000000000000"
-        )
-      );
-      boltCardWrapper.writeNDEF(msg);
-
-      this.authenticateWithDefaultChangeKey(boltCardWrapper, true);
-      
-      boltCardWrapper.setAndChangeFileSettings(piccOffset, macOffset);
-
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("ndefWritten", "success");
-      }});
-    }
-    catch(Exception e) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("ndefWritten", e.getMessage());
-      }});  
-      Log.e(TAG, "ndefWritten Error "+e.getMessage());
-      throw e;
-    }
-    if (this.randomUID) {
-      try {
-        this.authenticateWithDefaultChangeKey(boltCardWrapper, false);
-        boltCardWrapper.setPICCConfiguration(this.randomUID);
-        sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-          put("randomUID", "success");
-        }});
-      }
-      catch(Exception e) {
-        sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-          put("randomUID", e.getMessage());
-        }});  
-        Log.e(TAG, "randomUID Error "+e.getMessage());
-        throw e;
-      }
-    }
-
-    //write the keys to the card
-    try {
-      this.writeKeys(boltCardWrapper);
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("writekeys", "success");
-      }});
-    }
-    catch(Exception e) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("writekeys", e.getMessage());
-      }});  
-      Log.e(TAG, "writekeys Error"+e.getMessage());
-      return;
-    }
-
-    //finally get the read message from the card and pass to the server, so the
-    //server can set the current counter value and card UID
-    try {
-      INdefMessage ndefRead = boltCardWrapper.readNDEF();
-      String bolturl = this.decodeHex(ndefRead.toByteArray()).substring(5);
-
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("readNDEF", bolturl);
-      }});
-    }
-    catch(Exception e) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("readNDEF", "Error: "+e.getMessage());
-      }});  
-      Log.e(TAG, "ndefRead Error"+e.getMessage());
-      return;
-    }
-
-    this.testPandCvalues(boltCardWrapper);
-    
-  }
-
-  public void testPandCvalues(BoltCardWrapper boltCardWrapper) throws Exception{
-    String ptest = "ok";
-    String ctest = "ok";
-    String UID = Utilities.dumpBytes(boltCardWrapper.getUID());
-    INdefMessage ndefRead = boltCardWrapper.readNDEF();
-    String bolturl = ndefRead.toByteArray().length > 5 ? this.decodeHex(ndefRead.toByteArray()).substring(5) : "";
-    if(bolturl.equals("")) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("testp", "no p value to test");
-        put("testc", "no c value to test");
-      }});
-      return;
-    }
-    if(bolturl.indexOf("p=")==-1) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("testp", "no p value to test");
-      }});
-      return;
-    }
-    if(bolturl.indexOf("c=")==-1) {
-      sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-        put("testp", "no c value to test");
-      }});
-      return;
-    }
-      
-    //check PICC encryption to test key1
-    String pParam = bolturl.split("p=")[1].substring(0, 32);
-    String pDecrypt = this.decrypt(this.hexStringToByteArray(pParam));
-    String UIDwithout0x = UID.substring(2);
-    ptest = pDecrypt.startsWith("0xC7"+UIDwithout0x) ? "ok" : "decrypt with key failed";
-    final String pResult = ptest;
-    sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-      put("testp", pResult);
-    }});
-    String sv2string = "3CC300010080"+pDecrypt.substring(4,24);
-    byte[] sv2 = this.hexStringToByteArray(sv2string);
-
-    int cmacPos = bolturl.indexOf("c=")+7;
-    byte[] msg = sv2; //Arrays.copyOfRange(ndefRead.toByteArray(), 0, cmacPos-1);
-    
-    //Check CMAC to test key2
-    try {
-      String cParam = bolturl.split("c=")[1].substring(0, 16);
-      int cmacSize = 16;
-      BlockCipher cipher = new AESFastEngine();
-      Mac cmac = new CMac(cipher, cmacSize * 8);
-      KeyParameter keyParameter = new KeyParameter(key2);
-      cmac.init(keyParameter);
-      cmac.update(msg, 0, msg.length);
-      byte[] CMAC = new byte[cmacSize];
-      cmac.doFinal(CMAC, 0);
-
-      int cmacSize1 = 16;
-      BlockCipher cipher1 = new AESFastEngine();
-      Mac cmac1 = new CMac(cipher1, cmacSize1 * 8);
-      KeyParameter keyParameter1 = new KeyParameter(CMAC);
-      cmac.init(keyParameter1);
-      cmac.update(new byte[0], 0, 0);
-      byte[] CMAC1 = new byte[cmacSize1];
-      cmac.doFinal(CMAC1, 0);
-
-      byte[] MFCMAC = new byte[cmacSize / 2];
-
-      int j = 0;
-      for (int i = 0; i < CMAC1.length; i++) {
-        if (i % 2 != 0) {
-          MFCMAC[j] = CMAC1[i];
-          j += 1;
-        }
-      }
-
-      ctest = Utilities.dumpBytes(MFCMAC).equals("0x"+cParam) ? "ok" : "decrypt with key failed";
-
-    } catch (Exception ex) {
-      ctest = ex.getMessage();
-    }
-    final String cResult = ctest;
-    sendEvent("CreateBoltCard",new HashMap<String, String>() {{
-      put("testc", cResult);
-    }});
-  }
-
-  /**
-   * Reads the NFC card unauthenticated and dumps the first NDEF message along with other
-   * interesting info.
-   * 
-   * @param intent
-   * @throws Exception
-   */
-  private void readCard(BoltCardWrapper boltCardWrapper) throws Exception{
-
-    String tagname = boltCardWrapper.getType().getTagName() + boltCardWrapper.getType().getDescription();
-    String UID = Utilities.dumpBytes(boltCardWrapper.getUID());
-    int totalMem = boltCardWrapper.getTotalMemory();
-    byte[] getVersion = boltCardWrapper.getVersion();
-    String vendor = (getVersion[0] == (byte) 0x04) ? "NXP" : "Non NXP"; 
-    
-    String cardDataBuilder = "Tagname: "+tagname+"\r\n"+
-      "UID: "+UID+"\r\n"+
-      "TotalMem: "+totalMem+"\r\n"+
-      "Vendor: "+vendor+"\r\n";
-    String bolturl = "";
-    try {
-      INdefMessage ndefRead = boltCardWrapper.readNDEF();
-      bolturl = ndefRead.toByteArray().length > 5 ? this.decodeHex(ndefRead.toByteArray()).substring(5) : "";
-    }
-    catch(Exception e) {
-      if(e instanceof UsageException && e.getMessage() == "BytesToRead should be greater than 0") {
-        bolturl = "This Bolt Card is not formatted";
-      }
-      else throw e;
-    }
-    if(bolturl.indexOf("p=")==-1 || bolturl.indexOf("c=")==-1) {
-      WritableMap params = Arguments.createMap();
-      params.putString("cardReadInfo", cardDataBuilder);
-      params.putString("ndef", bolturl);
-      params.putString("cardUID", UID.substring(2));
-      sendEvent("CardHasBeenRead", params);
-    }
-    else {
-
-      // String [] keyChecks = checkKeys(boltCardWrapper);
-
-      Log.d(TAG, "Keychecks: "+new Byte(boltCardWrapper.getKeyVersion(0)));
-
-      WritableMap params = Arguments.createMap();
-      params.putString("tagname", tagname);
-      params.putString("cardReadInfo", cardDataBuilder);
-      params.putString("ndef", bolturl);
-      params.putString("key0Changed", ""+(new Byte(boltCardWrapper.getKeyVersion(0)).intValue()));
-      params.putString("key1Changed", ""+(new Byte(boltCardWrapper.getKeyVersion(1)).intValue()));
-      params.putString("key2Changed", ""+(new Byte(boltCardWrapper.getKeyVersion(2)).intValue()));
-      params.putString("key3Changed", ""+(new Byte(boltCardWrapper.getKeyVersion(3)).intValue()));
-      params.putString("key4Changed", ""+(new Byte(boltCardWrapper.getKeyVersion(4)).intValue()));
-      params.putString("cardUID", UID.substring(2));
-      sendEvent("CardHasBeenRead", params);
-    }
-    
-  }
-
-  public String decrypt(byte[] encryptedData) throws Exception {
-    Cipher decryptionCipher = Cipher.getInstance("AES/CBC/NoPadding");    
-    byte[] ivSpec = new byte[16];
-    Arrays.fill(ivSpec, (byte) 0x00);
-    IvParameterSpec spec = new IvParameterSpec(ivSpec);
-    Key keyDefault = new SecretKeySpec(key1, "AES");
-    decryptionCipher.init(Cipher.DECRYPT_MODE, keyDefault, spec);
-    byte[] decryptedBytes = decryptionCipher.doFinal(encryptedData);
-    return Utilities.dumpBytes(decryptedBytes);
-  }
-
-  /**
-   * Write the keys stored in memory to the NFC card (assmumes default zero byte keys)
-   * 
-   * @param intent
-   * @throws Exception
-   */
-  private void writeKeys(BoltCardWrapper boltCardWrapper) throws Exception{
-    String result = "success";
-    this.authenticateWithDefaultChangeKey(boltCardWrapper, false);
-
-    try{
-
-      //changeKey(int keyNumber, byte[] currentKeyData, byte[] newKeyData, byte newKeyVersion)
-      int key0newVersion = boltCardWrapper.getKeyVersion(0)+1;
-      int key1newVersion = boltCardWrapper.getKeyVersion(1)+1;
-      int key2newVersion = boltCardWrapper.getKeyVersion(2)+1;
-      int key3newVersion = boltCardWrapper.getKeyVersion(3)+1;
-      int key4newVersion = boltCardWrapper.getKeyVersion(4)+1;
-
-      //set up the default key
-      KeyData aesKeyData = new KeyData();
-      Key keyDefault = new SecretKeySpec(KEY_AES128_DEFAULT, "AES");
-      aesKeyData.setKey(keyDefault);
-
-      // change key 0 last as this is the change key
-      boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-      boltCardWrapper.changeKey(1, KEY_AES128_DEFAULT, this.key1, (byte) key1newVersion);
-      
-      boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-      boltCardWrapper.changeKey(2, KEY_AES128_DEFAULT, this.key2, (byte) key2newVersion);
-
-      boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-      boltCardWrapper.changeKey(3, KEY_AES128_DEFAULT, this.key3, (byte) key3newVersion);
-
-      boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-      boltCardWrapper.changeKey(4, KEY_AES128_DEFAULT, this.key4, (byte) key4newVersion);
-
-      boltCardWrapper.authenticateEV2NonFirst(0, aesKeyData);
-      boltCardWrapper.changeKey(0, KEY_AES128_DEFAULT, this.key0, (byte) key0newVersion);
-    }
-    catch(Exception e) {
-      result = "Error changing keys: "+e.getMessage();
-      // Log.d(TAG, "Error changing keys: "+e);
-      throw e;
-    }
-    WritableMap params = Arguments.createMap();
-    params.putString("output", result);
-    sendEvent("WriteKeysResult", params);
-  }
-
-  /**
-   * Reset all keys back to zero bytes from supplied keys
-   * @param intent
-   * @throws Exception
-   */
-  private void doresetKeys(BoltCardWrapper boltCardWrapper) throws Exception{
-    String result = "";
-    
-    if(resetKeys[0] == null || resetKeys[1] == null || resetKeys[2] == null || resetKeys[3] == null || resetKeys[4] == null) {
-      WritableMap params = Arguments.createMap();
-      params.putString("output", "Error, one or more keys not set");
-      Log.d(TAG, "Error, one or more keys not set");
-      sendEvent("ChangeKeysResult", params);
-      return;
-    }
-
-    KeyData currentChangeKeyAesKeyData = new KeyData();
-    Key currentChangeKey = new SecretKeySpec(this.hexStringToByteArray(resetKeys[0]), "AES");
-    currentChangeKeyAesKeyData.setKey(currentChangeKey);
-
-    KeyData defaultaesKeyData = new KeyData();
-    Key keyDefault = new SecretKeySpec(KEY_AES128_DEFAULT, "AES");
-    defaultaesKeyData.setKey(keyDefault);
-
-    //changeKey(int keyNumber, byte[] currentKeyData, byte[] newKeyData, byte newKeyVersion)
-    int keynewVersion = 0;
-    try{
-      boltCardWrapper.authenticateEV2First(0, currentChangeKeyAesKeyData, null);
-      boltCardWrapper.changeKey(0, this.hexStringToByteArray(resetKeys[0]), KEY_AES128_DEFAULT, (byte) keynewVersion);
-      result += "Change Key0: Success\r\n";
-    }
-    catch(Exception e) {
-      result += "Change Key0: "+e.getMessage()+". Could be incorrect key. Aborting key reset, please use correct keys. \r\n";
-      WritableMap params = Arguments.createMap();
-      params.putString("output", result);
-      sendEvent("ChangeKeysResult", params);
-      return;
-    }
-    try{
-      boltCardWrapper.authenticateEV2First(0, defaultaesKeyData, null);
-      boltCardWrapper.changeKey(1, this.hexStringToByteArray(resetKeys[1]), KEY_AES128_DEFAULT, (byte) keynewVersion);
-      result += "Change Key1: Success\r\n";
-    }
-    catch(Exception e) {
-      result += "Change Key1: "+e.getMessage()+"\r\n";
-    }
-    
-    try{
-      boltCardWrapper.authenticateEV2NonFirst(0, defaultaesKeyData);
-      boltCardWrapper.changeKey(2, this.hexStringToByteArray(resetKeys[2]), KEY_AES128_DEFAULT, (byte) keynewVersion);
-      result += "Change Key2: Success\r\n";
-    }
-    catch(Exception e) {
-      result += "Change Key2: "+e.getMessage()+"\r\n";
-    }
-
-    try{
-      boltCardWrapper.authenticateEV2NonFirst(0, defaultaesKeyData);
-      boltCardWrapper.changeKey(3, this.hexStringToByteArray(resetKeys[3]), KEY_AES128_DEFAULT, (byte) keynewVersion);
-      result += "Change Key3: Success\r\n";
-    }
-    catch(Exception e) {
-      result += "Change Key3: "+e.getMessage()+"\r\n";
-    }
-
-    try{
-      boltCardWrapper.authenticateEV2NonFirst(0, defaultaesKeyData);
-      boltCardWrapper.changeKey(4, this.hexStringToByteArray(resetKeys[4]), KEY_AES128_DEFAULT, (byte) keynewVersion);
-      result += "Change Key4: Success\r\n";
-    }
-    catch(Exception e) {
-      result += "Change Key4: "+e.getMessage()+"\r\n";
-    }
-
-    try {
-      this.authenticateWithDefaultChangeKey(boltCardWrapper, false);
-      boltCardWrapper.wipeNdefAndFileSettings();
-      result += "NDEF and SUN/SDM cleared."; 
-    }
-    catch (Exception e) {
-      result += "NDEF SUN/SDM Clear error: "+e.getMessage()+"\r\n";
-    }
-
-    WritableMap params = Arguments.createMap();
-    params.putString("output", result);
-    sendEvent("ChangeKeysResult", params);
-  }
-
-  /**
-   * Change keys function that allows setting all 5 keys and the LNURLW at the same time.
-   * @param lnurlw_base
-   * @param key0
-   * @param key1
-   * @param key2
-   * @param key3
-   * @param key4
-   * @param callBack
-   */
-  public void changeKeys(String lnurlw_base, String key0, String key1, String key2, String key3, String key4, boolean randomUID, Callback callBack) {
-    String result = "Success";
-    if (lnurlw_base.indexOf("lnurlw://") == -1) {
-      Log.e(TAG, "lnurlw_base is not a valid lnurlw");
-      callBack.invoke("lnurlw_base is not a valid lnurlw");
-      return;
-    }
-    if(lnurlw_base == null && key0 == null && key1 == null && key2 == null && key3 == null && key4 == null) {
-      this.lnurlw_base = null;
-      this.key0 = null;
-      this.key1 = null;
-      this.key2 = null;
-      this.key3 = null;
-      this.key4 = null;
-    }
-
-    try {
-      this.lnurlw_base = lnurlw_base;
-      this.key0 = this.hexStringToByteArray(key0);
-      this.key1 = this.hexStringToByteArray(key1);
-      this.key2 = this.hexStringToByteArray(key2);    
-      this.key3 = this.hexStringToByteArray(key3);    
-      this.key4 = this.hexStringToByteArray(key4);    
-      this.randomUID = randomUID;
-    }
-    catch(Exception e) {
-      Log.d(TAG, "Error one or more keys are invalid: "+e.getMessage());
-      result = "Error one or more keys are invalid";
-    }
-    callBack.invoke(result);
-  }
-
-  private void sendEvent(String eventName, HashMap<String,String> map) {
-    WritableMap params = Arguments.createMap();
-    for (Map.Entry<String, String> entry : map.entrySet()) {
-      String key = entry.getKey();
-      String value = entry.getValue();
-      params.putString(key, value);
-    }
-    sendEvent(eventName, params);
-  }
-
-
-  private void sendEvent(String eventName, WritableMap params) {
-    ReactContext reactContext = getReactNativeHost().getReactInstanceManager().getCurrentReactContext();
-    
-    reactContext
-      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-      .emit(eventName, params);
-  }
-
-  /**
-   * This will display message in toast or logcat or on screen or all three.
-   *
-   * @param str           String to be logged or displayed
-   * @param operationType 't' for Toast; 'n' for Logcat and Display in UI; 'd' for Toast, Logcat
-   *                      and
-   *                      Display in UI.
-   */
-  private void showMessage(final String str, final char operationType) {
-    Toast.makeText(MainActivity.this, str, Toast.LENGTH_SHORT).show();
-    NxpLogUtils.i(TAG, getString(R.string.Dump_data) + str);
-    
-  }
-
-  public byte[] hexStringToByteArray(String s) {
-    final int len = s.length();
-    // "111" is not a valid hex encoding.
-    if( len%2 != 0 )
-        throw new IllegalArgumentException("hexBinary needs to be even-length: "+s);
-
-    byte[] out = new byte[len/2];
-
-    for( int i=0; i<len; i+=2 ) {
-        int h = hexToBin(s.charAt(i  ));
-        int l = hexToBin(s.charAt(i+1));
-        if( h==-1 || l==-1 )
-            throw new IllegalArgumentException("contains illegal character for hexBinary: "+s);
-
-        out[i/2] = (byte)(h*16+l);
-    }
-
-    return out;
-  }
-
-  private static int hexToBin( char ch ) {
-    if( '0'<=ch && ch<='9' )    return ch-'0';
-    if( 'A'<=ch && ch<='F' )    return ch-'A'+10;
-    if( 'a'<=ch && ch<='f' )    return ch-'a'+10;
-    return -1;
-  }
-
-  public static String decodeHex(byte[] input) throws Exception {
-    return MainActivity.decodeHex(new BigInteger(1, input).toString(16));
-  }
-
-  public static String decodeHex(String input) throws Exception {
-    byte[] bytes = Hex.decodeHex(input.toCharArray());
-    return new String(bytes, "UTF-8");
   }
 
   @Override
   protected void onPause() {
-      super.onPause();
-      // NFC foreground dispatch is managed by react-native-nfc-manager.
-      if (mReactInstanceManager != null) {
-          mReactInstanceManager.onHostPause(this);
-      }
+    super.onPause();
+    if (mReactInstanceManager != null) {
+      mReactInstanceManager.onHostPause(this);
+    }
   }
 
   @Override
   protected void onResume() {
-      super.onResume();
-      // NFC foreground dispatch is managed by react-native-nfc-manager.
-      if (mReactInstanceManager != null) {
-          mReactInstanceManager.onHostResume(this, this);
-      }
+    super.onResume();
+    if (mReactInstanceManager != null) {
+      mReactInstanceManager.onHostResume(this, this);
+    }
   }
 
   @Override
   protected void onDestroy() {
-      super.onDestroy();
-
-      if (mReactInstanceManager != null) {
-          mReactInstanceManager.onHostDestroy(this);
-      }
-      if (mReactRootView != null) {
-          mReactRootView.unmountReactApplication();
-      }
+    super.onDestroy();
+    if (mReactInstanceManager != null) {
+      mReactInstanceManager.onHostDestroy(this);
+    }
+    if (mReactRootView != null) {
+      mReactRootView.unmountReactApplication();
+    }
   }
 
   @Override
   public void onBackPressed() {
-
     if (mReactInstanceManager != null) {
-        mReactInstanceManager.onBackPressed();
+      mReactInstanceManager.onBackPressed();
     } else {
-        super.onBackPressed();
+      super.onBackPressed();
     }
   }
 
   @Override
   public boolean onKeyUp(int keyCode, KeyEvent event) {
-      if (keyCode == KeyEvent.KEYCODE_MENU && mReactInstanceManager != null) {
-          mReactInstanceManager.showDevOptionsDialog();
-          return true;
-      }
-      return super.onKeyUp(keyCode, event);
-  }
-
-  private void clearData() {
-    Log.d(TAG, "Clearing data.");
-    this.lnurlw_base = null;
-    this.key0 = null;
-    this.key1 = null;
-    this.key2 = null;
-    this.key3 = null;
-    this.key4 = null;
-    this.resetKeys = new String[5];
-  }
-
-  public void setNodeURL(String url) {
-    this.lnurlw_base = url;
-  }
-
-  public void setCardMode(String cardmode) {
-    if(cardmode != null) this.cardmode = cardmode;
-    else Log.d(TAG, "*** setCardMode called with null string");
-  }
-
-  public void setResetKeys(String[] keys, String uid, Callback callBack) {
-    this.resetKeys = keys;
-    this.uid = uid;
+    if (keyCode == KeyEvent.KEYCODE_MENU && mReactInstanceManager != null) {
+      mReactInstanceManager.showDevOptionsDialog();
+      return true;
+    }
+    return super.onKeyUp(keyCode, event);
   }
 
   /**
    * Returns the name of the main component registered from JavaScript.
-   * This is used to schedule rendering of the component.
    */
   @Override
   protected String getMainComponentName() {
     return "cardinstaller";
   }
 
-  /**
-   * Returns the instance of the {@link ReactActivityDelegate}. Here we use a util class {@link
-   * DefaultReactActivityDelegate} which allows you to easily enable Fabric and Concurrent React
-   * (aka React 18) with two boolean flags.
-   */
   @Override
   protected ReactActivityDelegate createReactActivityDelegate() {
     return new DefaultReactActivityDelegate(
       this,
       getMainComponentName(),
-      // If you opted-in for the New Architecture, we enable the Fabric Renderer.
-      DefaultNewArchitectureEntryPoint.getFabricEnabled(), // fabricEnabled
-      // If you opted-in for the New Architecture, we enable Concurrent React (i.e. React 18).
-      DefaultNewArchitectureEntryPoint.getConcurrentReactEnabled() // concurrentRootEnabled
+      DefaultNewArchitectureEntryPoint.getFabricEnabled(),
+      DefaultNewArchitectureEntryPoint.getConcurrentReactEnabled()
     );
   }
 
-
-
   /**
-   * Align the back button behavior with Android S
-   * where moving root activities to background instead of finishing activities.
-   * @see <a href="https://developer.android.com/reference/android/app/Activity#onBackPressed()">onBackPressed</a>
+   * Align the back button behavior with Android S where moving root activities
+   * to background instead of finishing activities.
    */
   @Override
   public void invokeDefaultOnBackPressed() {
     if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
       if (!moveTaskToBack(false)) {
-        // For non-root activities, use the default implementation to finish them.
         super.invokeDefaultOnBackPressed();
       }
       return;
     }
-
-    // Use the default back button implementation on Android S
-    // because it's doing more than {@link Activity#moveTaskToBack} in fact.
     super.invokeDefaultOnBackPressed();
   }
-
 }
