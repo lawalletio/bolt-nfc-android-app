@@ -9,6 +9,7 @@ import {
 import {Text} from 'react-native-paper';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Svg, {Circle} from 'react-native-svg';
 import NfcManager, {Ndef} from 'react-native-nfc-manager';
 import Ntag424 from '../class/Ntag424';
 
@@ -33,43 +34,59 @@ const STEPS = [
 ];
 const TOTAL = STEPS.length;
 
-// Determinate circular progress, built without react-native-svg so it always
-// renders inside react-native-dialog's Modal: a circular track that fills from
-// the bottom, with an inner hole turning it into a ring. Driven purely by the
-// `pct` (0-100) state — NO Animated — so it re-renders reliably even while the
-// JS thread is busy with NFC/crypto (Animated frames would be starved there).
-function CircularProgress({pct, size, thickness, tint, track, bg, children}) {
-  const r = size / 2;
-  const fillHeight = (size * Math.max(0, Math.min(100, pct))) / 100;
+// Determinate circular progress: a grey track ring with a tinted arc that
+// sweeps CLOCKWISE from 12 o'clock as `pct` (0-100) grows — like a clock face
+// filling. Drawn with react-native-svg (a stroked circle + strokeDashoffset),
+// and driven purely by the `pct` state — NO Animated — so it re-renders
+// reliably even while the JS thread is busy with the NFC/crypto write.
+function CircularProgress({pct, size, thickness, tint, track, children}) {
+  const p = Math.max(0, Math.min(100, pct));
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = (size - thickness) / 2; // radius of the stroke centerline
+  const circumference = 2 * Math.PI * r;
+  // The arc length is the filled fraction; strokeDashoffset hides the rest.
+  const offset = circumference * (1 - p / 100);
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: r,
-        overflow: 'hidden',
-        backgroundColor: track,
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-      {/* Fill rises from the bottom as progress increases */}
+      <Svg width={size} height={size}>
+        {/* Track ring */}
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          stroke={track}
+          strokeWidth={thickness}
+          fill="none"
+        />
+        {/* Progress arc — rotated -90° (via origin/rotation props, which
+            react-native-svg renders reliably) so it starts at the top
+            (12 o'clock) and grows clockwise as the dash offset shrinks. */}
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          stroke={tint}
+          strokeWidth={thickness}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          originX={cx}
+          originY={cy}
+          rotation={-90}
+        />
+      </Svg>
+      {/* Center content (the % label), overlaid in the ring's hole */}
       <View
         style={{
           position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: fillHeight,
-          backgroundColor: tint,
-        }}
-      />
-      {/* Inner hole turns the filled disc into a ring */}
-      <View
-        style={{
-          width: size - thickness * 2,
-          height: size - thickness * 2,
-          borderRadius: (size - thickness * 2) / 2,
-          backgroundColor: bg,
           alignItems: 'center',
           justifyContent: 'center',
         }}>
@@ -337,8 +354,7 @@ export default function WriteModal(props) {
                 size={132}
                 thickness={12}
                 tint="#f58340"
-                track="#ececec"
-                bg="#ffffff">
+                track="#ececec">
                 <Text style={styles.progressPct}>{pct}%</Text>
               </CircularProgress>
               <Text style={styles.progressLabel}>
