@@ -916,7 +916,7 @@ Ntag424.testPAndC = async (pVal, cVal, uid, piccKey, macKey) => {
     },
   );
   const decryptedPiccData = CryptoJS.enc.Hex.stringify(decPiccData);
-  if (decryptedPiccData.startsWith('c7' + uid)) result.pTest = true;
+  if (decryptedPiccData.startsWith('c7' + uid.toLowerCase())) result.pTest = true;
 
   const sdmReadCtr = decryptedPiccData.slice(16, 22);
   const sv2 = '3cc300010080' + uid + sdmReadCtr;
