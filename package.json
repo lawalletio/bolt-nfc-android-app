@@ -14,6 +14,8 @@
     "build:debug": "./scripts/build debug",
     "build:release": "./scripts/build release",
     "build:bundle": "./scripts/build bundle",
+    "release:zapstore": "./scripts/release-zapstore.sh",
+    "zapstore:link": "./scripts/release-zapstore.sh link",
     "clean": "./scripts/build clean",
     "clean:full": "./scripts/build stop && rm -rf android/.gradle android/build android/app/build"
   },

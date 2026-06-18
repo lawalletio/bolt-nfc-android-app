@@ -1,0 +1,28 @@
+# Zapstore publish config — https://zapstore.dev/docs/publish
+# Used by `yarn release:zapstore` (scripts/release-zapstore.sh), or directly:
+#   SIGN_WITH=bunker://… zsp publish zapstore.yaml --quiet
+# To (re)generate this interactively: zsp publish --wizard
+
+name: Card Installer
+summary: Provision and wipe NTAG424 Boltcards for LaWallet
+description: |
+  Android app to provision and wipe NTAG424 DNA NFC cards as Boltcards for a
+  LaWallet / Boltcard server. Tap a blank card to write its keys and lnurlw,
+  or tap a programmed card to wipe it — a contactless, paywave-like experience
+  for the Lightning Network. License-free native NFC (no NXP TapLinX required).
+
+repository: https://github.com/lawalletio/card-installer
+license: MIT
+icon: ./assets/icon.png
+
+# The release artifact: the locally-built, production-signed APK (built by the
+# release script). Alternatively, set this to the repo URL above to mirror the
+# latest GitHub release instead of a local build.
+release_source: ./android/app/build/outputs/apk/release/app-release.apk
+
+tags:
+  - nfc
+  - bitcoin
+  - lightning
+  - boltcard
+  - nostr
