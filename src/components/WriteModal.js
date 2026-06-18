@@ -133,6 +133,8 @@ export default function WriteModal(props) {
   const progress = useRef(new Animated.Value(0)).current;
   const [stepLabel, setStepLabel] = useState('');
   const [pct, setPct] = useState(0);
+  const [done, setDone] = useState(false);
+  const checkScale = useRef(new Animated.Value(0)).current;
 
   // Move the ring/label to step `i` (label = what's being written now, ring =
   // steps already completed).
@@ -144,7 +146,7 @@ export default function WriteModal(props) {
       Animated.timing(progress, {
         toValue: value,
         duration: 250,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
     },
     [progress],
@@ -156,16 +158,33 @@ export default function WriteModal(props) {
     Animated.timing(progress, {
       toValue: 1,
       duration: 250,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [progress]);
+
+  // Fill the ring to 100%, play the success check-mark, then close.
+  const succeed = useCallback(() => {
+    finishProgress();
+    setDone(true);
+    checkScale.setValue(0);
+    Animated.spring(checkScale, {
+      toValue: 1,
+      friction: 4,
+      useNativeDriver: false,
+    }).start();
+    setTimeout(() => {
+      props.onSuccess && props.onSuccess();
+    }, 1300);
+  }, [finishProgress, checkScale, props]);
 
   // Reset
   const reset = useCallback(() => {
     setStepLabel('');
     setPct(0);
+    setDone(false);
     progress.setValue(0);
-  }, [progress]);
+    checkScale.setValue(0);
+  }, [progress, checkScale]);
 
   // Write card
   const write = useCallback(async () => {
@@ -239,14 +258,12 @@ export default function WriteModal(props) {
       );
       if (!('p' in params)) {
         console.info('no p value to test');
-        finishProgress();
-        props.onSuccess && props.onSuccess();
+        succeed();
         return;
       }
       if (!('c' in params)) {
         console.info('no c value to test');
-        finishProgress();
-        props.onSuccess && props.onSuccess();
+        succeed();
         return;
       }
 
@@ -262,8 +279,7 @@ export default function WriteModal(props) {
         console.error('Error on tests of decrypt');
       }
 
-      finishProgress();
-      props.onSuccess && props.onSuccess();
+      succeed();
     } catch (ex) {
       console.error('Oops!', ex);
       var _error = ex;
@@ -279,7 +295,7 @@ export default function WriteModal(props) {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardData, advance, finishProgress, props]);
+  }, [cardData, advance, succeed, props]);
 
   // On cardData change — the write (and the progress animation) starts the
   // moment a card is detected and its keys arrive from the server.
@@ -343,6 +359,15 @@ export default function WriteModal(props) {
         <View style={styles.body}>
           {error ? (
             <Text style={styles.error}>{String(error)}</Text>
+          ) : done ? (
+            <View style={styles.progressWrap}>
+              <View style={styles.successCircle}>
+                <Animated.View style={{transform: [{scale: checkScale}]}}>
+                  <Ionicons name="checkmark-sharp" size={68} color="#fff" />
+                </Animated.View>
+              </View>
+              <Text style={styles.successLabel}>Card written!</Text>
+            </View>
           ) : (
             <View style={styles.progressWrap}>
               <CircularProgress
@@ -416,6 +441,20 @@ const styles = StyleSheet.create({
   progressHint: {
     fontSize: 12,
     color: '#999',
+    textAlign: 'center',
+  },
+  successCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#2e9e5b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2e9e5b',
     textAlign: 'center',
   },
   error: {
