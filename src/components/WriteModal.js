@@ -181,47 +181,37 @@ export default function WriteModal(props) {
 
       await advance(8); // Verifying
 
-      //set offset for ndef header
-      const ndef = await Ntag424.readData('060000');
-      const setNdefMessage = Ndef.uri.decodePayload(ndef);
-
-      //we have the latest read from the card fire it off to the server.
-      const httpsLNURL = setNdefMessage.replace('lnurlw://', 'https://');
-      fetch(httpsLNURL)
-        .then(response => response.json())
-        .then(() => {})
-        .catch(() => {});
-
-      await Ntag424.AuthEv2First('00', k0);
-
-      const params = {};
-      setNdefMessage.replace(
-        /[?&]+([^=&]+)=([^&]*)/gi,
-        function (m, key, value) {
+      // The keys are written — the card is functional now. The read-back
+      // verification below is a best-effort sanity check: if it throws, do NOT
+      // fail the whole write (that left the modal stuck on an error even though
+      // the card was written). Always finish with succeed().
+      try {
+        const ndef = await Ntag424.readData('060000');
+        const verifyMsg = Ndef.uri.decodePayload(ndef);
+        const httpsLNURL = verifyMsg.replace('lnurlw://', 'https://');
+        fetch(httpsLNURL)
+          .then(response => response.json())
+          .then(() => {})
+          .catch(() => {});
+        await Ntag424.AuthEv2First('00', k0);
+        const params = {};
+        verifyMsg.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
           params[key] = value;
-        },
-      );
-      if (!('p' in params)) {
-        console.info('no p value to test');
-        succeed();
-        return;
-      }
-      if (!('c' in params)) {
-        console.info('no c value to test');
-        succeed();
-        return;
-      }
-
-      const pVal = params.p;
-      const cVal = params.c.slice(0, 16);
-
-      const testResult = await Ntag424.testPAndC(pVal, cVal, uid, k1, k2);
-
-      console.info(testResult.pTest ? 'ok' : 'decrypt with key failed');
-      console.info(testResult.cTest ? 'ok' : 'decrypt with key failed');
-
-      if (!testResult.pTest || !testResult.cTest) {
-        console.error('Error on tests of decrypt');
+        });
+        if ('p' in params && 'c' in params) {
+          const testResult = await Ntag424.testPAndC(
+            params.p,
+            params.c.slice(0, 16),
+            uid,
+            k1,
+            k2,
+          );
+          console.info(
+            testResult.pTest && testResult.cTest ? 'verify ok' : 'verify failed',
+          );
+        }
+      } catch (verifyErr) {
+        console.warn('Card written; verification failed (non-fatal)', verifyErr);
       }
 
       succeed();

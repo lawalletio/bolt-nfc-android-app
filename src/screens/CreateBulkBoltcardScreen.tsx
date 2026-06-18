@@ -317,6 +317,21 @@ export default function CreateBulkBoltcardScreen() {
     }
   }, [onReadCard]);
 
+  // Test the FULL create+write flow with no real NFC/server. Goes through the
+  // exact real path (CREATING_CARD -> WRITING -> WriteModal in mock mode) so we
+  // can reproduce/verify the progress UI end-to-end.
+  const runMockProcess = useCallback(async () => {
+    cancelledByUser.current = true;
+    NfcManager.cancelTechnologyRequest().catch(() => {});
+    setCardStatus(CardStatus.CREATING_CARD); // "Creating card…"
+    await new Promise(res => setTimeout(res, 1200)); // simulate POST + GET /write
+    // Setting mockProgress makes the WriteModal's cardData = MOCK_CARD AND
+    // mock = true in the same render, so its effect runs the SIMULATED write.
+    // (Setting cardData separately raced ahead and ran the real write().)
+    setMockProgress(true);
+    setCardStatus(CardStatus.WRITING);
+  }, []);
+
   // Cancel NFC on tab blur
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
@@ -404,6 +419,9 @@ export default function CreateBulkBoltcardScreen() {
               setCardStatus(CardStatus.IDLE);
             }}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mockBtn} onPress={runMockProcess}>
+            <Text style={styles.mockBtnText}>🧪 Mock full process</Text>
           </TouchableOpacity>
         </View>
 
@@ -553,6 +571,7 @@ export default function CreateBulkBoltcardScreen() {
         onSuccess={() => {
           if (mockProgress) {
             setMockProgress(false);
+            setCardStatus(CardStatus.IDLE);
           } else {
             setCardStatus(CardStatus.READING);
           }
@@ -764,4 +783,13 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
   },
   cancelBtnText: {fontSize: 14, color: '#666'},
+  mockBtn: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f58340',
+  },
+  mockBtnText: {fontSize: 13, color: '#f58340', fontWeight: '600'},
 });
