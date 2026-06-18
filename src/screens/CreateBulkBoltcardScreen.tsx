@@ -34,6 +34,22 @@ const CardStatus = {
   WRITING: 'writing',
 };
 
+// Dummy card data used by the "Test" button to preview the write progress UI
+// without a real card. The mock path doesn't touch NFC, so the values are
+// arbitrary.
+const MOCK_CARD = {
+  card_name: 'Mock Card',
+  id: 'mock',
+  k0: '00000000000000000000000000000000',
+  k1: '11111111111111111111111111111111',
+  k2: '22222222222222222222222222222222',
+  k3: '33333333333333333333333333333333',
+  k4: '44444444444444444444444444444444',
+  lnurlw_base: 'lnurlw://example.com/api/cards/mock/scan',
+  protocol_name: 'new_bolt_card_response',
+  protocol_version: '1',
+} as Ntag424WriteData;
+
 // ─── Skin Card Item ───────────────────────────────────────────────────────────
 
 function SkinItem({
@@ -127,6 +143,7 @@ export default function CreateBulkBoltcardScreen() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string>();
   const [skinAspect, setSkinAspect] = useState(1.586);
+  const [mockProgress, setMockProgress] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
@@ -415,6 +432,9 @@ export default function CreateBulkBoltcardScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Select Skin</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => setMockProgress(true)} style={styles.clearBtn}>
+            <Text style={styles.clearBtnText}>🧪 Test</Text>
+          </TouchableOpacity>
           {skin && (
             <TouchableOpacity onPress={() => setSkin(undefined)} style={styles.clearBtn}>
               <Text style={styles.clearBtnText}>Clear</Text>
@@ -517,10 +537,20 @@ export default function CreateBulkBoltcardScreen() {
       )}
 
       <WriteModal
-        visible={cardStatus === CardStatus.WRITING}
-        onCancel={() => setCardStatus(CardStatus.IDLE)}
-        onSuccess={() => setCardStatus(CardStatus.READING)}
-        cardData={cardData}
+        visible={cardStatus === CardStatus.WRITING || mockProgress}
+        mock={mockProgress}
+        onCancel={() => {
+          setMockProgress(false);
+          setCardStatus(CardStatus.IDLE);
+        }}
+        onSuccess={() => {
+          if (mockProgress) {
+            setMockProgress(false);
+          } else {
+            setCardStatus(CardStatus.READING);
+          }
+        }}
+        cardData={mockProgress ? MOCK_CARD : cardData}
         skin={skin}
       />
     </View>
