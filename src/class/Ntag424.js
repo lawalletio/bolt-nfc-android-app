@@ -1,4 +1,3 @@
-import {Platform} from 'react-native';
 import NfcManager from 'react-native-nfc-manager';
 import {randomBytes} from 'crypto';
 import crc from 'crc';
@@ -96,25 +95,19 @@ function decToHexLsbFirst(dec, bytes) {
 }
 
 /**
- * Sends the ADPU command using appropriate function for ios / android
- * creates the same return object for each platform
+ * Sends an APDU command over ISO-DEP (Android) and splits the response into
+ * the data payload plus the two status-word bytes (sw1/sw2).
  *
  * @param {byte[]} commandBytes
  * @returns {response, sw1, sw2}
  */
 Ntag424.sendAPDUCommand = async function (commandBytes) {
-  const response =
-    Platform.OS == 'ios'
-      ? await NfcManager.sendCommandAPDUIOS(commandBytes)
-      : await NfcManager.transceive(commandBytes);
-  var newResponse = response;
-  if (Platform.OS == 'android') {
-    newResponse = {};
-    newResponse.response = response.slice(0, -2);
-    newResponse.sw1 = response.slice(-2, -1);
-    newResponse.sw2 = response.slice(-1);
-  }
-  return newResponse;
+  const response = await NfcManager.transceive(commandBytes);
+  return {
+    response: response.slice(0, -2),
+    sw1: response.slice(-2, -1),
+    sw2: response.slice(-1),
+  };
 };
 
 /**
@@ -916,7 +909,7 @@ Ntag424.testPAndC = async (pVal, cVal, uid, piccKey, macKey) => {
     },
   );
   const decryptedPiccData = CryptoJS.enc.Hex.stringify(decPiccData);
-  if (decryptedPiccData.startsWith('c7' + uid)) result.pTest = true;
+  if (decryptedPiccData.startsWith('c7' + uid.toLowerCase())) result.pTest = true;
 
   const sdmReadCtr = decryptedPiccData.slice(16, 22);
   const sv2 = '3cc300010080' + uid + sdmReadCtr;

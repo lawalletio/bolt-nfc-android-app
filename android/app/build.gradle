@@ -114,6 +114,14 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 25
         versionName "0.3.0"
+        // Restrict native builds to the configured ABI(s). With ABI splits
+        // disabled, this is what actually keeps the (universal) APK arm64-only
+        // and stops third-party CMake modules (vision-camera) from building
+        // armeabi-v7a, which reanimated's prefab no longer supports. Driven by
+        // reactNativeArchitectures so `-PreactNativeArchitectures=...` still works.
+        ndk {
+            abiFilters(*reactNativeArchitectures())
+        }
     }
 
     splits {
@@ -185,15 +193,8 @@ dependencies {
     implementation('androidx.appcompat:appcompat:1.0.0')
     implementation "com.google.firebase:firebase-core:17.2.2"
     
-    implementation fileTree(dir: "libs", include: ["*.aar"])
-    implementation 'org.apache.commons:commons-lang3:3.6'
-    implementation 'commons-codec:commons-codec:1.13'
-    implementation 'org.bouncycastle:bcpkix-jdk15on:1.56'
-    implementation "com.google.guava:guava:31.1-android"
-
-    implementation group: 'com.madgag.spongycastle', name: 'pkix', version: '1.54.0.0'
-    implementation group: 'com.madgag.spongycastle', name: 'prov', version: '1.54.0.0'
-    implementation group: 'com.madgag.spongycastle', name: 'core', version: '1.54.0.0'
+    // NXP TapLinX (.aar) and its transitive deps (commons, bouncycastle, guava,
+    // spongycastle) were removed — NTAG424 NFC now runs entirely in JS.
 
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
