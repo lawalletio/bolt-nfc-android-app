@@ -97,7 +97,7 @@ function CircularProgress({pct, size, thickness, tint, track, children}) {
 }
 
 export default function WriteModal(props) {
-  const {cardData, skin, mock} = props;
+  const {cardData, skin} = props;
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState();
@@ -254,16 +254,6 @@ export default function WriteModal(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardData, advance, succeed, props]);
 
-  // Simulate the write steps (no NFC) so the progress UI can be tested.
-  const mockWrite = useCallback(async () => {
-    for (let i = 0; i < TOTAL; i++) {
-      await advance(i);
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise(res => setTimeout(res, 500));
-    }
-    succeed();
-  }, [advance, succeed]);
-
   // On cardData change — the write (and the progress animation) starts the
   // moment a card is detected and its keys arrive from the server.
   useEffect(() => {
@@ -273,11 +263,7 @@ export default function WriteModal(props) {
     }
     reset();
     setIsLoading(true);
-    if (mock) {
-      mockWrite();
-    } else {
-      write();
-    }
+    write();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardData]);
 

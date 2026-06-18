@@ -34,22 +34,6 @@ const CardStatus = {
   WRITING: 'writing',
 };
 
-// Dummy card data used by the "Test" button to preview the write progress UI
-// without a real card. The mock path doesn't touch NFC, so the values are
-// arbitrary.
-const MOCK_CARD = {
-  card_name: 'Mock Card',
-  id: 'mock',
-  k0: '00000000000000000000000000000000',
-  k1: '11111111111111111111111111111111',
-  k2: '22222222222222222222222222222222',
-  k3: '33333333333333333333333333333333',
-  k4: '44444444444444444444444444444444',
-  lnurlw_base: 'lnurlw://example.com/api/cards/mock/scan',
-  protocol_name: 'new_bolt_card_response',
-  protocol_version: '1',
-} as Ntag424WriteData;
-
 // ─── Skin Card Item ───────────────────────────────────────────────────────────
 
 function SkinItem({
@@ -143,7 +127,6 @@ export default function CreateBulkBoltcardScreen() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string>();
   const [skinAspect, setSkinAspect] = useState(1.586);
-  const [mockProgress, setMockProgress] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshSpin = useRef(new Animated.Value(0)).current;
@@ -317,21 +300,6 @@ export default function CreateBulkBoltcardScreen() {
     }
   }, [onReadCard]);
 
-  // Test the FULL create+write flow with no real NFC/server. Goes through the
-  // exact real path (CREATING_CARD -> WRITING -> WriteModal in mock mode) so we
-  // can reproduce/verify the progress UI end-to-end.
-  const runMockProcess = useCallback(async () => {
-    cancelledByUser.current = true;
-    NfcManager.cancelTechnologyRequest().catch(() => {});
-    setCardStatus(CardStatus.CREATING_CARD); // "Creating card…"
-    await new Promise(res => setTimeout(res, 1200)); // simulate POST + GET /write
-    // Setting mockProgress makes the WriteModal's cardData = MOCK_CARD AND
-    // mock = true in the same render, so its effect runs the SIMULATED write.
-    // (Setting cardData separately raced ahead and ran the real write().)
-    setMockProgress(true);
-    setCardStatus(CardStatus.WRITING);
-  }, []);
-
   // Cancel NFC on tab blur
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
@@ -395,10 +363,8 @@ export default function CreateBulkBoltcardScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   // Build the main content (NFC-waiting vs gallery). The WriteModal is rendered
-  // once, OUTSIDE this conditional, so it is never unmounted. Remounting it
-  // while already visible makes react-native-dialog's Modal fail to appear —
-  // that's why the write progress didn't show on a real tap (the mock worked
-  // because the modal was already mounted in the gallery).
+  // once, OUTSIDE this conditional, so it stays mounted and its progress ring
+  // keeps its state across the content switch.
   let content;
   if (cardStatus === CardStatus.READING || cardStatus === CardStatus.CREATING_CARD) {
     const screen = Dimensions.get('window');
@@ -430,9 +396,6 @@ export default function CreateBulkBoltcardScreen() {
             }}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.mockBtn} onPress={runMockProcess}>
-            <Text style={styles.mockBtnText}>🧪 Mock full process</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Card being written — bottom preview */}
@@ -461,9 +424,6 @@ export default function CreateBulkBoltcardScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Select Skin</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => setMockProgress(true)} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>🧪 Test</Text>
-          </TouchableOpacity>
           {skin && (
             <TouchableOpacity onPress={() => setSkin(undefined)} style={styles.clearBtn}>
               <Text style={styles.clearBtnText}>Clear</Text>
@@ -572,21 +532,10 @@ export default function CreateBulkBoltcardScreen() {
     <View style={{flex: 1}}>
       {content}
       <WriteModal
-        visible={cardStatus === CardStatus.WRITING || mockProgress}
-        mock={mockProgress}
-        onCancel={() => {
-          setMockProgress(false);
-          setCardStatus(CardStatus.IDLE);
-        }}
-        onSuccess={() => {
-          if (mockProgress) {
-            setMockProgress(false);
-            setCardStatus(CardStatus.IDLE);
-          } else {
-            setCardStatus(CardStatus.READING);
-          }
-        }}
-        cardData={mockProgress ? MOCK_CARD : cardData}
+        visible={cardStatus === CardStatus.WRITING}
+        onCancel={() => setCardStatus(CardStatus.IDLE)}
+        onSuccess={() => setCardStatus(CardStatus.READING)}
+        cardData={cardData}
         skin={skin}
       />
     </View>
@@ -793,13 +742,4 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
   },
   cancelBtnText: {fontSize: 14, color: '#666'},
-  mockBtn: {
-    marginTop: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#f58340',
-  },
-  mockBtnText: {fontSize: 13, color: '#f58340', fontWeight: '600'},
 });
