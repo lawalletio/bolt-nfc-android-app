@@ -369,11 +369,13 @@ export default function CreateBulkBoltcardScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  // NFC / creating in progress
+  // Build the main content (NFC-waiting vs gallery). The WriteModal is rendered
+  // once, OUTSIDE this conditional, so it is never unmounted. Remounting it
+  // while already visible makes react-native-dialog's Modal fail to appear —
+  // that's why the write progress didn't show on a real tap (the mock worked
+  // because the modal was already mounted in the gallery).
+  let content;
   if (cardStatus === CardStatus.READING || cardStatus === CardStatus.CREATING_CARD) {
-    // Card preview spans nearly the full screen width (small side margin),
-    // height from the image aspect ratio, capped so it can't push the
-    // spinner/title off-screen.
     const screen = Dimensions.get('window');
     let previewW = screen.width - 32; // ~16px margin each side
     let previewH = previewW / skinAspect;
@@ -382,7 +384,7 @@ export default function CreateBulkBoltcardScreen() {
       previewH = maxH;
       previewW = previewH * skinAspect;
     }
-    return (
+    content = (
       <View style={styles.nfcCenter}>
         <View style={styles.nfcMain}>
           <Animated.View>
@@ -423,10 +425,9 @@ export default function CreateBulkBoltcardScreen() {
         )}
       </View>
     );
-  }
-
-  // Skin gallery (IDLE state)
-  return (
+  } else {
+    // Skin gallery (IDLE state)
+    content = (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -535,7 +536,13 @@ export default function CreateBulkBoltcardScreen() {
           </TouchableOpacity>
         </View>
       )}
+    </View>
+    );
+  }
 
+  return (
+    <View style={{flex: 1}}>
+      {content}
       <WriteModal
         visible={cardStatus === CardStatus.WRITING || mockProgress}
         mock={mockProgress}
