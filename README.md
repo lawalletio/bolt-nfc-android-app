@@ -195,6 +195,12 @@ Various fixes to attempt to prevent card programming errors.
 ### 0.1.4
 Added support for random UID to increase privacy.
 
+## License
+
+[MIT](LICENSE). This is a fork of
+[boltcard/bolt-nfc-android-app](https://github.com/boltcard/bolt-nfc-android-app)
+(also MIT); the original copyright is retained in the LICENSE alongside the fork's.
+
 ## More
 
 - [Card programming errors](card-programming-errors.md)
