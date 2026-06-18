@@ -14,8 +14,9 @@ import {Card as PaperCard} from 'react-native-paper';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
 import NfcManager, {Ndef, NfcTech} from 'react-native-nfc-manager';
+import QRCode from 'react-native-qrcode-svg';
 import Ntag424 from '../class/Ntag424';
-import {useLaWallet} from '../providers/LaWallet';
+import {useLaWallet, AuthError} from '../providers/LaWallet';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -83,6 +84,11 @@ export default function ReadNFCScreen() {
   const [serverCard, setServerCard] = useState(null);
   const [serverLoading, setServerLoading] = useState(false);
 
+  // Activation QR — minted from the LaWallet record on demand
+  const [activating, setActivating] = useState(false);
+  const [activationQr, setActivationQr] = useState(null); // {qrPayload, expiresAt}
+  const [activateError, setActivateError] = useState(null);
+
   // Pulse animation for the NFC icon
   const pulse = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(null);
@@ -130,6 +136,8 @@ export default function ReadNFCScreen() {
     setChipInfo(null);
     setKeyVersions(null);
     setServerCard(null);
+    setActivationQr(null);
+    setActivateError(null);
 
     try {
       // A scan cancelled by a tab switch can leave a pending request, so the
@@ -219,6 +227,43 @@ export default function ReadNFCScreen() {
     [authFetch, isLogged],
   );
 
+  // Mint a single-use activation QR for this card (POST .../activation-tokens).
+  // The end-user scans the returned `qrPayload` URL with their LaWallet wallet
+  // to claim the card (ONE_TIME → ownership transfer).
+  const activateCard = useCallback(async () => {
+    if (!serverCard?.id) return;
+    setActivating(true);
+    setActivateError(null);
+    try {
+      const res = await authFetch(
+        '/api/cards/' + serverCard.id + '/activation-tokens',
+        {method: 'POST', body: JSON.stringify({qrKind: 'ONE_TIME'})},
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setActivationQr({qrPayload: data.qrPayload, expiresAt: data.expiresAt});
+      } else if (res.status === 409) {
+        setActivateError('Another activation QR was just issued — try again.');
+      } else {
+        setActivateError(`Couldn't create the activation QR (server ${res.status}).`);
+      }
+    } catch (e) {
+      setActivateError(
+        e instanceof AuthError
+          ? 'Session expired — re-login on the Login tab.'
+          : e?.message || 'Network error creating the activation QR.',
+      );
+    } finally {
+      setActivating(false);
+    }
+  }, [authFetch, serverCard]);
+
+  const copyActivationUrl = useCallback(() => {
+    if (!activationQr?.qrPayload) return;
+    Clipboard.setString(activationQr.qrPayload);
+    Toast.show({type: 'success', text1: 'Activation URL copied'});
+  }, [activationQr]);
+
   // Auto-start when screen gains focus; cancel + invalidate when it loses focus
   useFocusEffect(
     useCallback(() => {
@@ -282,6 +327,7 @@ export default function ReadNFCScreen() {
 
   // Result state
   return (
+    <View style={{flex: 1}}>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
 
       {/* Header icon + tap-again button */}
@@ -329,6 +375,23 @@ export default function ReadNFCScreen() {
                   label="Last used"
                   value={serverCard.lastUsedAt ? formatDate(serverCard.lastUsedAt) : 'Never'}
                 />
+                <TouchableOpacity
+                  style={styles.activateBtn}
+                  onPress={activateCard}
+                  disabled={activating}
+                  activeOpacity={0.85}>
+                  {activating ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="qr-code" size={20} color="#fff" />
+                      <Text style={styles.activateBtnText}>Activate Card</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                {activateError && (
+                  <Text style={styles.activateError}>{activateError}</Text>
+                )}
               </>
             ) : !serverLoading ? (
               <Text style={styles.notFound}>Card not registered in this system.</Text>
@@ -373,6 +436,37 @@ export default function ReadNFCScreen() {
 
       <View style={{height: 24}} />
     </ScrollView>
+
+      {/* Activation QR overlay (in-tree View, not a Modal) */}
+      {activationQr && (
+        <View style={styles.qrOverlay}>
+          <View style={styles.qrCard}>
+            <Text style={styles.qrTitle}>Activate Card</Text>
+            <View style={styles.qrBox}>
+              <QRCode value={activationQr.qrPayload} size={244} backgroundColor="#fff" />
+            </View>
+            <Text style={styles.qrHint}>
+              Single-use — scan with your LaWallet wallet to claim this card.
+            </Text>
+            <TouchableOpacity onPress={copyActivationUrl} activeOpacity={0.7}>
+              <Text style={styles.qrUrl} numberOfLines={2} ellipsizeMode="middle">
+                {activationQr.qrPayload}
+              </Text>
+            </TouchableOpacity>
+            {activationQr.expiresAt && (
+              <Text style={styles.qrExpiry}>
+                Expires {formatDate(activationQr.expiresAt)}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.qrCloseBtn}
+              onPress={() => setActivationQr(null)}>
+              <Text style={styles.qrCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -493,4 +587,47 @@ const styles = StyleSheet.create({
   infoValue: {fontSize: 13, color: '#333', textAlign: 'right', flexShrink: 1},
   infoValueMono: {fontFamily: 'monospace', fontSize: 11},
   copyBtn: {padding: 4},
+
+  // Activate button + activation-QR overlay
+  activateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#f58340',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  activateBtnText: {color: '#fff', fontWeight: 'bold', fontSize: 17},
+  activateError: {color: '#c0392b', fontSize: 13, marginTop: 8, textAlign: 'center'},
+  qrOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 100,
+    elevation: 100,
+  },
+  qrCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 22,
+    alignItems: 'center',
+    gap: 14,
+  },
+  qrTitle: {fontSize: 20, fontWeight: 'bold', color: '#222'},
+  qrBox: {backgroundColor: '#fff', padding: 12, borderRadius: 8},
+  qrHint: {fontSize: 13, color: '#555', textAlign: 'center', lineHeight: 18},
+  qrUrl: {fontSize: 11, fontFamily: 'monospace', color: '#1976D2', textAlign: 'center'},
+  qrExpiry: {fontSize: 12, color: '#999'},
+  qrCloseBtn: {marginTop: 4, paddingVertical: 10, paddingHorizontal: 28},
+  qrCloseText: {color: '#1976D2', fontWeight: 'bold', fontSize: 16},
 });
