@@ -1,7 +1,6 @@
 import React, {useCallback, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -192,20 +191,7 @@ export default function WipeCardScreen() {
     }
   }, [authFetch, handleError, setStepSynced]);
 
-  // ── Phase 3: confirmation dialog ───────────────────────────────────────────
-
-  const handleResetPress = () => {
-    Alert.alert(
-      'Reset card?',
-      'This will permanently wipe all keys on the physical card and delete it from the server. This cannot be undone.',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {text: 'Reset', style: 'destructive', onPress: startWipe},
-      ],
-    );
-  };
-
-  // ── Phase 4: NFC wipe + server delete ──────────────────────────────────────
+  // ── Phase 3: NFC wipe + server delete (no confirmation prompt) ─────────────
 
   const startWipe = useCallback(async () => {
     if (!card) return;
@@ -417,7 +403,7 @@ export default function WipeCardScreen() {
         </PaperCard.Content>
       </PaperCard>
 
-      <TouchableOpacity style={styles.dangerBtn} onPress={handleResetPress}>
+      <TouchableOpacity style={styles.dangerBtn} onPress={startWipe}>
         <Ionicons
           name="trash-outline"
           size={18}
