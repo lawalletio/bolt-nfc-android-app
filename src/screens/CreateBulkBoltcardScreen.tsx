@@ -368,16 +368,26 @@ export default function CreateBulkBoltcardScreen() {
     };
   }, [skin]);
 
-  // Drive NFC on status change
+  // Drive NFC on status change.
   useEffect(() => {
     switch (cardStatus) {
       case CardStatus.READING:
+        // Fresh read: clear any stale card + error, then arm NFC.
         setError(undefined);
         setCardData(undefined);
         startReading();
         break;
-      default:
+      case CardStatus.IDLE:
+        // Back to the gallery: drop the card data.
         setCardData(undefined);
+        break;
+      // CREATING_CARD / WRITING: do NOT touch cardData — the WriteModal needs
+      // it for the whole write. Clearing it here (the old `default` branch) is
+      // exactly why the real write showed the card but never the progress ring:
+      // cardData was reset to undefined the instant WRITING began, so the
+      // modal's `{cardData && <ring/>}` rendered nothing while write() ran on.
+      default:
+        break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardStatus]);
