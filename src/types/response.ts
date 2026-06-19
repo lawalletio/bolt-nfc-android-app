@@ -74,6 +74,16 @@ export type Ntag424WriteData = {
   protocol_version: '1';
 };
 
+// Response of POST /api/cards/:id/write-token — a single-use, replay-protected
+// programming token. `url` is the public-domain `/write?token=…` URL (for a
+// scanned QR); `token` is also returned raw so a client talking to the instance
+// on a different host can build its own `<base>/api/cards/:id/write?token=…`.
+export type WriteTokenResponse = {
+  token: string;
+  url: string;
+  expiresAt: string;
+};
+
 // Reset payload from GET /api/cards/:id/wipe. Keys are top-level (not nested
 // under `ntag424`). Fetching this endpoint unpairs the card server-side.
 export type Ntag424WipeData = {
