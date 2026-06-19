@@ -14,7 +14,7 @@ Android only.
 
 ## Current version
 
-**v0.3.0** — see the [latest release](https://github.com/lawalletio/card-installer/releases/latest).
+**v0.3.3** — see the [latest release](https://github.com/lawalletio/card-installer/releases/latest).
 
 ## What's different in this fork
 
@@ -186,6 +186,11 @@ keytool -genkeypair -v -keystore android/app/my-upload-key.keystore \
   `~/.gradle/gradle.properties` or environment variables.
 
 ## Version history
+
+### 0.3.3
+Read NFC: **Activate Card** — mint a single-use activation QR for a registered
+LaWallet card (the end-user scans it with their wallet to claim the card). Wipe
+flow now fetches reset keys from the server's `/wipe` endpoint.
 
 ### 0.3.0
 License-free native NFC (TapLinX no longer registered); write progress ring that
