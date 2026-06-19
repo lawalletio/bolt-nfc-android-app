@@ -22,7 +22,7 @@ import NfcManager, {NfcTech} from 'react-native-nfc-manager';
 import WriteModal from '../components/WriteModal';
 
 import {useLaWallet, AuthError} from '../providers/LaWallet';
-import {Ntag424WriteData} from '../types/response';
+import {Ntag424WriteData, WriteTokenResponse} from '../types/response';
 import {Skin} from '../types/skin';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -215,21 +215,15 @@ export default function CreateBulkBoltcardScreen() {
         const cardId: string = createdCard.id;
 
         let writeData: Ntag424WriteData;
-        try {
-          const writeRes = await fetch(`${baseUrl}/api/cards/${cardId}/write`);
-          if (writeRes.ok) {
-            writeData = await writeRes.json();
-          } else {
-            throw new Error(`write endpoint returned ${writeRes.status}`);
-          }
-        } catch (writeErr) {
-          console.warn('CreateBulk: write endpoint failed, using POST keys', writeErr);
+        // Host used only by the degraded fallback below. The happy path takes
+        // the server-derived public host from the /write response instead.
+        const host = (() => {
+          try { return new URL(baseUrl).host; }
+          catch { return baseUrl.replace(/^https?:\/\//, '').split('/')[0]; }
+        })();
+        const fallbackFromPost = (): Ntag424WriteData => {
           const ntag = createdCard.ntag424;
-          const host = (() => {
-            try { return new URL(baseUrl).host; }
-            catch { return baseUrl.replace(/^https?:\/\//, '').split('/')[0]; }
-          })();
-          writeData = {
+          return {
             card_name: createdCard.title || 'New Card',
             id: ntag.cid,
             k0: ntag.k0, k1: ntag.k1, k2: ntag.k2, k3: ntag.k3, k4: ntag.k4,
@@ -237,6 +231,46 @@ export default function CreateBulkBoltcardScreen() {
             protocol_name: 'new_bolt_card_response',
             protocol_version: '1',
           };
+        };
+        try {
+          // `/write` is now replay-protected: mint a single-use token first
+          // (authenticated; succeeds while the card is fresh — a just-created
+          // card always is), then fetch `/write` with it. We anchor the GET on
+          // `baseUrl` (the reachable instance host) using the RAW token, not the
+          // mint response's public-domain `url`, since the two can differ. The
+          // response's `lnurlw_base` still carries the correct server-derived
+          // public host, so the chip is programmed with the right scan URL.
+          const mintRes = await authFetch(`/api/cards/${cardId}/write-token`, {
+            method: 'POST',
+            body: JSON.stringify({}),
+          });
+          if (!mintRes.ok) {
+            throw new Error(`write-token mint returned ${mintRes.status}`);
+          }
+          const {token} = (await mintRes.json()) as WriteTokenResponse;
+          if (!token) {
+            throw new Error('write-token response missing token');
+          }
+          const writeRes = await fetch(
+            `${baseUrl}/api/cards/${cardId}/write?token=${encodeURIComponent(
+              token,
+            )}`,
+          );
+          if (!writeRes.ok) {
+            throw new Error(`write endpoint returned ${writeRes.status}`);
+          }
+          writeData = await writeRes.json();
+        } catch (writeErr) {
+          // An expired session must surface the re-login prompt (handled by the
+          // outer catch), not silently degrade to the fallback.
+          if (writeErr instanceof AuthError) {
+            throw writeErr;
+          }
+          console.warn(
+            'CreateBulk: tokenized write failed, using POST keys',
+            writeErr,
+          );
+          writeData = fallbackFromPost();
         }
 
         setCardData(writeData);
