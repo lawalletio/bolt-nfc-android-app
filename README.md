@@ -14,7 +14,7 @@ Android only.
 
 ## Current version
 
-**v0.3.3** — see the [latest release](https://github.com/lawalletio/card-installer/releases/latest).
+**v0.3.4** — see the [latest release](https://github.com/lawalletio/card-installer/releases/latest).
 
 ## What's different in this fork
 
@@ -186,6 +186,13 @@ keytool -genkeypair -v -keystore android/app/my-upload-key.keystore \
   `~/.gradle/gradle.properties` or environment variables.
 
 ## Version history
+
+### 0.3.4
+Bulk Create now mints a single-use `/write` token after creating each card and
+fetches the replay-protected, tokenized `/write` endpoint on the reachable
+instance host, so the server-derived `lnurlw_base` (public scan host) is burned
+onto the chip. A POST-keys fallback is retained for older servers without the
+`/write-token` route.
 
 ### 0.3.3
 Read NFC: **Activate Card** — mint a single-use activation QR for a registered
